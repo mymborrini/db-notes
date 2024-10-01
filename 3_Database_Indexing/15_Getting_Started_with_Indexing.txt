@@ -1,0 +1,167 @@
+How the performance change when you have an index?
+
+An index is a data structure that you build and assign on top of an existing table
+that basically looks into your table and try to summarize data and create shortcuts. 
+The best idea of index is like a label for each letter or number like in phone book.
+
+Basically the index are two types -> 
+ - B tree
+ - LSM tree
+
+Create employee table, image to have 1 millions data with the following column
+
+- id -> integer, not null, sequential (so you don't have to check it will create automatically an increment)
+- employees_pk -> PRIMARY KEY btree(id) (Every primary key has an index by default and it is a btree index)
+- name -> char something fancy, random nothing in particular;
+
+- create sequence employees_seq start 1 increment 1;
+- create table employees (id integer primary key default nextval('employees_seq'), name varchar(100) not null);
+- insert into employees(name) select concat('Name_',random() * 100) from generate_series(0, 10000000);
+
+To check the indexes generated: 
+- select * from pg_indexes where schemaname='public';
+
+To check the table information:
+- \d employees;
+
+Now let's try to make some query,
+- select id from employees where id = 1000;
+- select * from employees where id = 1000;
+
+In order to make analyst is enough to write:
+- explain analyze select id from employees where id = 2000;
+
+something like this come from:
+Index Only Scan using employees_pkey on employees  (cost=0.43..4.45 rows=1 width=4) (actual time=0.062..0.064 rows=1 
+loops=1)
+   Index Cond: (id = 2000)
+   Heap Fetches: 0
+ Planning Time: 0.059 ms
+ Execution Time: 0.079 ms
+
+ Index Only Scan means that he only check for the index, in fact even heap Fetches show you 0
+ Planning time is the time the database use to "decide" the strategy about going to the index data
+ structure or going to the heap
+ The Execution time is instead the real time of Execution
+
+
+- explain analyze select name from employees where id = 3000;
+Index Scan using employees_pkey on employees  (cost=0.43..8.45 rows=1 width=23) (actual time=0.058..0.059 rows=1 loop
+s=1)
+   Index Cond: (id = 3000)
+ Planning Time: 0.114 ms
+ Execution Time: 0.076 ms
+
+As you can see the is an index scan, means that the query hit the heap. This is a slower query, I have to check 
+the index and go to the table.
+If I execute the same query again is faster because of caching.
+
+- insert into employees(name) values ('Zs');
+
+
+- explain analyze select id from employees where name = 'Zs';
+In this case you will have something like this:
+
+Gather  (cost=1000.00..126613.85 rows=1 width=4) (actual time=340.783..346.733 rows=1 loops=1)
+   Workers Planned: 2
+   Workers Launched: 2
+   ->  Parallel Seq Scan on employees  (cost=0.00..125613.75 rows=1 width=4) (actual time=301.156..301.156 rows=0 loop
+s=3)
+         Filter: ((name)::text = 'Zs'::text)
+         Rows Removed by Filter: 3333334
+ Planning Time: 0.051 ms
+ JIT:
+   Functions: 12
+   Options: Inlining false, Optimization false, Expressions true, Deforming true
+   Timing: Generation 1.354 ms, Inlining 0.000 ms, Optimization 5.072 ms, Emission 14.229 ms, Total 20.654 ms
+ Execution Time: 347.304 ms
+
+This is really slow, the name has not an index so the only way to do is to do a 
+"Parallel Seq Scan on employees" so a sequential scan of the table, this is the worst query because you will
+scan the entire table.
+
+ Workers Planned: 2, Workers Launched: 2 => postgres try to be smart and run two thread simultanesely
+
+ The Planning is really fast since you don't have a choice, you have to check all the table;
+
+
+- insert into employees(name) values ('Rf');
+
+
+- explain analyze select id from employees where name like '%Rf%';
+Gather  (cost=1000.00..126713.75 rows=1000 width=4) (actual time=476.822..482.589 rows=1 loops=1)
+   Workers Planned: 2
+   Workers Launched: 2
+   ->  Parallel Seq Scan on employees  (cost=0.00..125613.75 rows=417 width=4) (actual time=446.037..446.038 rows=0 lo
+ops=3)
+         Filter: ((name)::text ~~ '%Rf%'::text)
+         Rows Removed by Filter: 3333334
+ Planning Time: 0.072 ms
+ JIT:
+   Functions: 12
+   Options: Inlining false, Optimization false, Expressions true, Deforming true
+   Timing: Generation 1.600 ms, Inlining 0.000 ms, Optimization 0.705 ms, Emission 9.953 ms, Total 12.258 ms
+ Execution Time: 483.181 ms
+
+ This is the worst you can do, it's really slow  
+
+ Now create an index on employee name
+ - create index employees_name on employees(name);
+ This is gonna take some time in order to be executed since all the btree has to be created
+
+ Now try to do the last two queries:
+ - explain analyze select id from employees where name = 'Zs';
+  Index Scan using employees_name on employees  (cost=0.56..8.58 rows=1 width=4) (actual time=0.028..0.029 rows=1 loops
+=1)
+   Index Cond: ((name)::text = 'Zs'::text)
+ Planning Time: 0.216 ms
+ Execution Time: 0.044 ms
+
+ It was really faster since it's a Index scan and we have to jump through few rows in order to get what we
+ are looking for.
+
+
+- explain analyze select id from employees where name like '%Rf%';
+Gather  (cost=1000.00..126713.35 rows=1000 width=4) (actual time=479.271..486.171 rows=1 loops=1)
+   Workers Planned: 2
+   Workers Launched: 2
+   ->  Parallel Seq Scan on employees  (cost=0.00..125613.35 rows=417 width=4) (actual time=448.966..448.967 rows=0 lo
+ops=3)
+         Filter: ((name)::text ~~ '%Rf%'::text)
+         Rows Removed by Filter: 3333334
+ Planning Time: 0.865 ms
+ JIT:
+   Functions: 12
+   Options: Inlining false, Optimization false, Expressions true, Deforming true
+   Timing: Generation 1.547 ms, Inlining 0.000 ms, Optimization 0.781 ms, Emission 9.129 ms, Total 11.458 ms
+ Execution Time: 486.806 ms
+
+ If you use a like, you are back to the slow query. Why? Because we cannot scan the index since we are not
+ asking for a literal value, we are asking for an expression. So despite we having an index the plan of the
+ database decide to not use it, since we are asking for an expression. Which means that setting an index
+ is not enough to speed up the database
+
+You can also create multicolumn index, so you can add more column in the index you are about to create. this is
+called Inlining so you can with scan index only get more information, but of course it makes writing performance 
+a little worse;
+
+In the end let's talk about the difference between index scan and bitmap scan:
+in Index scan, postgres scans the index and the moment it finds the an entry that matches the where clause 
+it jumps back to the table (heap) to fetch whatever the user asks for (in our case example id was the key indexed 
+and name was on the table) and it is going to do that for every entry it finds in the index.. 
+so you can see that its gonna be random access to the table and index back and forth ... so if we are just selected 
+1 value that is great..  even if we are selecting multiple vrows that happened to be next to each other 
+(1->10 for example) index scan is still great because when we went back to the table to select that row we pulled a whole block which 
+contained multiple rows so chances that the next rows are in the same block are high..However assume we are selecting random 
+values id =1 or id = 8 or id =1000 that is random access and index scan are bad for those because of the jump 
+back and forth of between index and table ..
+
+
+
+so postgres solves this problem by saying "hey, there are chances that I am going to select multiple 
+rows from multiple blocks so index scan is gonna destroy the performance  " so let us scan the entire index 
+(or multiple indexes if any) and come up with a list of things that we need to fetch from the table and 
+do a single call to the table instead of multiple ... thats is the power of bitmap 
+..the bad thing about bitmap is they are not always great if , example is your rows are next to each other 
+and you can quickly get them but jumping immediately to the table (just like index scan) but you had me waiting 
+to scan the entire index instead ...

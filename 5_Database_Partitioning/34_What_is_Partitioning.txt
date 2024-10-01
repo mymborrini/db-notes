@@ -1,0 +1,22 @@
+If you have a table with one million rows, scanning all that stuff could be really expensive.
+
+So let's consider a simple table, with id and name, with 1 million rows.
+So for example if you have a table for example customers
+
+You can partition like the following
+
+customers 1 million rows => 
+
+customers_200k | customers_400k | customers_600k | customers_800k | customers_1M
+
+Let's split this huge table into 5 smaller tables.
+
+From your point of view, you will always sees and interact with customer table, but the database 
+will exactly know which partition to search for
+
+So in both cases (partition or not) you will do the same exactly query:
+
+- select name from customer where id = 700000;
+
+The database will automatically resolve:
+Which partition is customer 700000 is?

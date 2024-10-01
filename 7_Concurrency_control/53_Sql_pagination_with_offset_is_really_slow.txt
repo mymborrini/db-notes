@@ -1,0 +1,127 @@
+Why should I avoid offset?
+Supposing aving this query:
+- select title from news offset 100 limit 10;
+
+offset by design fetch 110 rows and drop the 100 number of rows.
+As the offset increase the database add more and more rows (that will be dropped),
+so this operation becames more and more expensive
+
+Another problem of offset could be the one that a new row could be inserted on top of
+the stack. Each row is pushed down so you will read a row that you have already read before
+
+Example:
+
+-1      Read from 99 to 100
+-2
+...
+-90
+-91
+...
+-99
+-100
+-101
+...
+-110
+
+
+- New Row
+-1          A new Row is inserted on top everything is pushed down  
+-2          (This will ususally happened when you sort by creationDatetime for example)
+...
+-90
+-91
+...
+-99
+-100
+-101
+...
+-110
+
+-1      Read from 100 to 101
+-2 (old 1)
+...
+-90 (old 89)
+-91 (old 90)
+...
+-99 (old 98)
+-100 (old 99)
+-101 (old 100)
+...
+-110
+
+As you can see you read old 99 => new 100 again from the previous pagination.
+
+
+So let's see on postgres
+- create table news(id serial primary key, a text, b text, c integer, title text);
+- insert into news(title) select concat('Title_', floor(random() * 100)) from generate_series(0,100000000);
+
+Now let's see the result of putting and offset;
+- explain analyze select title from news order by id desc offset 0 limit 10;
+
+Limit  (cost=0.57..0.88 rows=10 width=12) (actual time=0.725..0.938 rows=10 loops=1)
+   ->  Index Scan Backward using news_pkey on news  (cost=0.57..3376338.99 rows=106651028 width=12) (actual
+ time=0.709..0.784 rows=10 loops=1)
+ Planning Time: 6.430 ms
+ Execution Time: 1.647 ms
+
+- explain analyze select title from news order by id desc offset 1000 limit 10;
+
+ Limit  (cost=32.23..32.54 rows=10 width=12) (actual time=21.297..21.571 rows=10 loops=1)
+   ->  Index Scan Backward using news_pkey on news  (cost=0.57..3376338.99 rows=106651028 width=12) (actual
+ time=0.291..13.253 rows=1010 loops=1)
+ Planning Time: 0.944 ms
+ Execution Time: 21.686 ms
+
+ As you can see (actual time=0.709..0.784 rows=10 loops=1), in the first one and
+ (actual time=0.291..13.253 rows=1010 loops=1)) in the second one.
+
+ The rows in the second one are all the rows, not only 10.
+ So, from the index you pull 1010 rows and then you apply a limit to only 10.
+
+ - explain analyze select title from news order by id desc offset 100000 limit 10;
+
+ Limit  (cost=19387.98..19389.92 rows=10 width=12) (actual time=1845.131..1845.397 rows=10 loops=1)
+   ->  Index Scan Backward using news_pkey on news  (cost=0.56..1925553.08 rows=9931968 width=12) (actual t
+ime=0.754..1134.742 rows=100010 loops=1)
+ Planning Time: 14.752 ms
+ Execution Time: 1847.353 ms
+
+ With an offset of 10000, the exuction time starts to be really important, it takes only 2 seconds
+ to get 10 rows...
+
+ So what I can do to fix this?
+ Remove the offset and use the id itself to make pagination, since the id has a beatiful index.
+
+Try to make this query instead for example get the first page:
+- select title, id from news order by id desc limit 10;
+
+  title   |    id     
+----------+-----------
+ Title_62 | 108506514
+ Title_57 | 108506513
+ Title_0  | 108506512
+ Title_45 | 108506511
+ Title_77 | 108506510
+ Title_6  | 108506509
+ Title_37 | 108506508
+ Title_31 | 108506507
+ Title_10 | 108506506
+ Title_38 | 108506505
+
+Now from this information, the client can sent you the last id back, so this one 108506505
+Now you can perform the following query, which is increadibily faster.
+
+- select title, id from news where id < 108506505 order by id desc limit 10;
+
+if you do exaplain analyze of this query
+- explain analyze select title, id from news where id < 108506505 order by id desc limit 10;
+
+Limit  (cost=0.56..2.52 rows=10 width=12) (actual time=0.094..0.317 rows=10 loops=1)
+   ->  Index Scan Backward using news_pkey on news  (cost=0.56..1950382.84 rows=9931959 width=12) (actual t
+ime=0.078..0.156 rows=10 loops=1)
+         Index Cond: (id < 108506505)
+ Planning Time: 1.153 ms
+ Execution Time: 0.435 ms
+
+ You can see that the index too works only with 10 rows. 

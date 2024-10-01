@@ -1,0 +1,27 @@
+Suppose we have a table with a row with two possible values aa and bb.
+You have a tsx1 that change all a into b and another one tsx2 that change all b into A
+We want the rows to be all a or all b
+
+So with repeatable read isolation
+this can happens:
+
+    = tsx1 => bb
+              bb
+aa                = COMMIT => bb
+bb                = COMMIT => aa
+    = tsx2 => aa
+              aa
+
+
+Not exactly what you want... you want to change everything into b and then everything into a
+
+aa => tsx1 => bb => tsx2 => aa
+bb            bb            aa
+
+In this case serializable is the only option even in POSTGRES;
+postgres will raise an error if you commit the second transaction (in the first example), so you should be ready
+in this case to redo a transaction
+
+There are other ways to achieve this doing pessimistic lock, so all other transactions have to wait 
+but you have to be in a read committed isolation level to work, this is going to be a little be more 
+complicated

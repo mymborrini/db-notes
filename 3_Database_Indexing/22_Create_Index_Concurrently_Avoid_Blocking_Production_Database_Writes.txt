@@ -1,0 +1,16 @@
+Create index takes really a long time and remember (if you are on production) that index lock the full table.
+So the insert or the update command will not works.
+
+you can do read But cannot really write.
+
+So postgres create something called concurrency index where you can write and read while the index is created
+
+So instead of doing
+- create index  g_idx on grades(g);
+type:
+- create index concurrently g_idx on grades(g);
+
+Of course this operation, will use more CPU and take much time and moreover can actually fail.
+Think of the case of a unique index... if you insert some duplicates all the operation fail.
+
+At this point you have to drop the index and recreate.

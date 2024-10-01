@@ -1,0 +1,65 @@
+Connection pool is a pattern of creating database pool Connection, generally TCP Connection
+And allow multiple client to use this pool Connection.
+
+The problem is that generally server has a limitated pool of database Connection while clients
+are a lot more.
+In order to interact with the database from a backend point of view
+- we can make a connection and a query with that and then close the connection (classic way, stateless but really bad), 
+- we can obtain the connection from the pool and use that to make queries
+
+In the examples before this is how to configure a Client connection (1 method):
+
+new Client({
+    host: "localhost",
+    port: 5432,
+    user: "postgres",
+    password: "postgres",
+    database: "postgres"
+  })
+
+And this is how to configure a pool
+
+new pg.Pool({
+    "host": "localhost",
+    "port": 5432,
+    "user":"postgres",
+    "password" : "postgres",
+    "database" : "postgres",
+    "max": 20,
+    "connectionTimeoutMillis" : 0,
+    "idleTimeoutMillis": 0
+})
+
+As you can see in the pool you have to configure something more:
+- The max, is the max connection you want to establish in the pool.
+- The connectionTimeoutMillis is the timeout you have to wait for a connection to be released
+- The idleTimeoutMillis is the time after that I will get rid of this connection 
+(if it's not used)
+
+In the pool you are no longer the manager of the connection, you can onyl ask the pool
+to execute a query for you, and the pool will pick up a connection and use it in order
+to perform a query. If there are no connection left, because they are all used or they are
+all busy, you have to wait, as a client, for a connection to be released. The time you have to
+wait for a connection to be released is configurable to the property connectionTimeoutMillis
+"How long should I wait for a pool to give me a connection", this is the meaning behind this 
+parameter (0 means wait forever). 
+idleTimeoutMillis, this parameter means: 
+"After I establish a connection, if the connection is not used, 
+how many time I have to wait before get rid of it" 
+Since the connection are all in memory object, it takes space. 0 means that never get destroyed
+
+You can ask the pool to execute a query for you, or to give you a connection, this is useful
+when you have to make transaction for examples, that will run inside a single connection, so 
+you are sure that once you obtain a connection the transaction can run, without have to wait or
+rollback because at some poin no more connection are available.
+
+Using pool is faster since it's no necessary to open and close the connection everytime.
+
+Comparing the time pool is more or less 50% faster. If Connection takes 1s, pool can takes 500ms
+
+
+
+
+
+
+

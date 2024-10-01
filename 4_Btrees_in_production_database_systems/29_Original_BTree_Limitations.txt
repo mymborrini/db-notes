@@ -1,0 +1,27 @@
+        | 2:702  | 4:704 |
+    ____|        |       |___ 
+    |            |          |
+  |1:701|     |3:703|     |5:705|   
+
+Limitations of BTREE
+
+- Elements in all nodes store both the key and the value
+- Internal nodes take more space thus require more IO and can slow down traversal
+- Range queries are slow because of random access (give me all values 1-5)
+- B+Tree solve these problem
+
+because you store both keys and values you can only store so many elements
+So you waste a lot of memory space that you don't use.
+If you use a string primary key it will use a lot of space, so nodes will have less elements,
+less elements means more nodes, more nodes means more pages, more pages means more IO => slow
+
+Moreover when you add a new elements you have the risk of split and split has a cost.
+If you could have nodes with more elements you will split less often so perfomance during insert
+could raise.
+
+So internal nodes take more space (2 point).
+
+Another thing is about range queries for example for 1 to 5 if you're unluckly you could have to 
+make up to a lot of Btree searching, despite being really compact
+
+

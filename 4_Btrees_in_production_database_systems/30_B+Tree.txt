@@ -1,0 +1,30 @@
+B+tree
+
+- Exactly like B-tree but only stores keys in internal nodes
+- Values are only stored in leaf nodes
+- Internal nodes are smaller since they only stores keys and they can fit more elements
+- Leaf nodes are linked so once you find a key you can find all values before and after
+that key. Because each leaf node points to the following
+- Great for range queries.
+
+Example:
+                _____________________| 5 |__________________
+        ______|3|_________                  ______________ |7|9| _______________
+     _|2|_              _|4|__           _|6|_             _|8|___           _|10|______
+    |     |            |      |         |     |           |       |         |           |
+|1:701|->|2:702|->|3:703|->|4:704|->|5:705|->|6:706|->|7:707|->|8:708|->|9:709|->|10:710|11:711|    
+
+The key (of the internal nodes) is duplicated since we need everything in the leaf nodes.
+Does not consider leaf nodes as single couple of key value only . Generally they have a lot of
+values since they are node and each node is a page. Like 10-11
+In this query as you can see if you're looking for 4 for example, you find a 4 as internal node and in
+b+ tree there are a new rules which is if greater or equal go to the right. So 4 go to the right
+to find the leaf node with 4 as value.
+
+Another example 5 => it's equal go to the right |7|9| => to the left |6| => to the left
+and found 5.
+
+As you can see now if you're looking for (4-9) this works great, since once 4 is found all 
+the following data are directly received
+
+

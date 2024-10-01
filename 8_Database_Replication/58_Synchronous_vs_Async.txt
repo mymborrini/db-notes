@@ -1,0 +1,14 @@
+
+- Synchronous Replication, a write transaction to the master will be blocked until
+it is written to the backup nodes
+
+- Asyncrhonous Replication, a write transaction is considered successful if it written to the
+master, then Asyncrhonously the writes are applied to the backup nodes.
+
+In Synchronous you have to write to the master and then the children in order to be considered successful,
+but if you have 7 children, you have to wait until all the 7th is updated? Postgres can let 
+you configure how many children should be updated before the client can be notified
+So if it's enough for you to update the first 2 nodes, then the other 5 can be updated Asyncrhonously
+and you can tell the client the success after only the first two.
+
+

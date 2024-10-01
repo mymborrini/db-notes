@@ -1,0 +1,24 @@
+- One Master/Leader node that accepts write/ddls
+- One or more backup/standby nodes that receive those writes from the Master
+- Simple to implements, no conflicts
+
+The idea is to have a Lead node wich accepts writes and ddl operations, like create
+tables ecc... 
+
+Backup/standby node are only read-only nodes, you don't write to your leafs nodes, you only 
+writ to your Master node and then the Master node will Replicate your changes on the backup node.
+
+The beatiful of this is that is really easy to implements, and you don't have conflicts since you
+only write to the master node.
+
+Exists always a bidirectional TCP connection between the master node and the backup nodes.
+
+Now the main question of course is
+DOES THE CLIENTS HAVE TO WAIT FOR THE MASTER TO PUSH THE UPDATES TO THE BACKUP NODES?
+
+It depends... this is called Asyncrhonous vs Synchronous updates.
+
+One more thing to understand is that relational databases could be eventual consistency like 
+the NOsql databases.
+
+

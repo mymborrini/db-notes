@@ -1,0 +1,4 @@
+Acid properties is critical to make a relation database
+
+This will try to explain even Why people are moving from relation databases to nosql databases
+(btw because of consistency)

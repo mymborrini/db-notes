@@ -1,0 +1,40 @@
+
+Firstable create the 
+- init.sql 
+file in order to run the exact same query in all the datbase
+
+Then we need to create a new image that run that script everytime we create a new instance
+- Dockerfile
+Once you copy the init.sql docker will automatically run that file.
+
+Then we want to build the image from the Dockerfile
+- docker build -t pgshard .
+
+The . at the end is really important, the command must be run of course insede the sharding folder
+
+Once you build the image you have to run the docker containers for three shards
+- docker run -e POSTGRES_PASSWORD=postgres --name pgshard1 -d -p 5432:5432 pgshard 
+- docker run -e POSTGRES_PASSWORD=postgres --name pgshard2 -d -p 5433:5432 pgshard
+- docker run -e POSTGRES_PASSWORD=postgres --name pgshard3 -d -p 5434:5432 pgshard 
+
+Run pgAdmin in order to manage datbase shards
+- docker run -e PGADMIN_DEFAULT_EMAIL=mattia.borrini@hotmail.it -e PGADMIN_DEFAULT_PASSWORD=password --name pgAdmin -d -p 5555:80 dpage/pgadmin4
+
+I generally prefer usgin with a docker-compose.yml and data-frip of jetbrains
+
+PgAdmin does not really works really well..
+
+--- WRITING TO A SHARED
+
+Look at sharding-wirte folder
+We are going to build a web application with a POST and a GET in order to perform 
+write and read operations
+
+Once the app is listening on port 8081
+
+GO to the browser and use the console of the browser in order to using the fetch 
+operation
+
+Adding shards is not that easy, you have to take care of your shard in the client
+and if you add a new shard you have to redistribute everything
+

@@ -1,0 +1,56 @@
+When do I shard my database?
+
+The last thing you have to do... there are so many things you can do before 
+complicates everything with sharding.
+
+It's a really complex architectural and very complex to implements.
+
+So if the problem is that you are receving too many request, the index is too
+large because the table is huge and it takes a lot before returning a response
+using sharding, means a little over engenireeing the problem, too early.
+
+Sharding is not the solution in this case... because first you have to identify 
+the problem. So the problem is => my reading are slow
+(generally writing is not that bad... especially if you are using btree)
+
+So problem in read, table is large => partitioning (horizontal)
+So the indexes will be smaller and the queries will be faster, a lot of database
+such as postgres doing this all for you
+
+But you can still has problem. The single read is fast but you have to do a lot of
+query in parallel and so many tcp connections is a problem.
+Answer => Replication (It's a topic we still have to dicuss but the meaning is clear)
+A manster node with two backup (maybe in different server).
+Every replica could have partitioning too. the only problem is of course of consistency in read
+(CAP Theorem), but as we dicussed before... write in general is not really bad.
+An top of this you could use, NGINX or whatever in order to make a load balancing
+
+But you can still has problem with that solution, for example if you write a lot (doubt it when people
+talk about this... writing in general is not a problem, 
+and to saturate a single server you really have to write a lot)
+
+You can do replications with more master each one for different regions in order to avoid conflicts,
+and at the end synchronization is really easy because conflicts barely happened.
+
+If all of this is still not enough then go and do sharding.
+Sharding is the more complicate things you can do.
+
+Youtube runs into this problem. (before google acquire it).
+Youtube has a Mysql server they starts to have a serious problem with writes, for the uploading 
+of video, the comments, and the likes... ecc...
+
+They do sharding... and they decide that this is not mantainable, because if they want 
+to change some logic everything breaks, because if they want to apply some changes, they have
+to change all the clients..
+So they starts using vitess (a database clustering system for horizontal scaling of Mysql), it's kuberneetes release.
+They did some magical stuff... it's above of Mysql and the shard your database and when they sent you
+a query.
+
+But they still have to maintein vitess. So the question remains... do you really need sharding?
+
+
+
+
+
+
+

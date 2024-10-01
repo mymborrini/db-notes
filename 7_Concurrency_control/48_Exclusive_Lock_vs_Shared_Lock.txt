@@ -1,0 +1,53 @@
+Exclusive Lock:
+ I want to read/write a piece of data (column/row). I want to be sure that nobody is going to read/ 
+ write the same piece of data that i'm checking right now for security/consistency ecc... 
+ If anybody tries to read thet value he's gonna have an error. 
+ I'll be the only one who can update that value, and nobody is gonna read it until I have finished to
+ write or I'll be the only one who can read that value, and nobody is gonna update it until I have 
+ finished to read.
+
+Shared Lock:
+ I want to read a value. And I want to make sure that nobody is gonna update that value. If anybody tries to
+ write this value he's gonna have an error. Many connections can acquire different shared lock for 
+ the same resources.
+
+When I want to acquire an Exclusive lock, there must be no Shared Lock, and of course 
+the opposite is also true, if I want to obtain a Shared Lock there must be non Exclusive lock.
+
+Example:
+
+Alice | $1000
+Bob   | $600
+Charly| $1200
+
+1. Alice starts a transaction to deposit $200. Obtains Exclusive Lock (SUCCESS).
+Nobody acquire any shared lock... so she will succeed
+2. transaction committed
+
+Alice | $1200
+Bob   | $600
+Charly| $1200
+
+3. Alice starts a reporting job on her account, so it starts a long transaction 
+She is just doing a read operation, she acquire a shared lock and she succeed.
+4. Bob starts a reporting job on his account, he ask for a shared lock and he succeed.
+5. Charly wants to do a transfer on Bob account. In this case he attempts to obtain 
+an exclusive lock, but since bob got a shared lock before, he FAILS and exits.
+6. Bob finish is report and exits
+7. Charly attempts again to do the transfer and in this case succeed. In fact right now
+Only Alice has a shared lock, but Alice has a shared lock only on her account, so this will not
+interfere with Charly activity. Charly acquire the exclusive Lock and succeed and make the transfer.
+8. Charly committed $300 from his account to Bob's account.
+
+Alice | $1200
+Bob   | $900
+Charly| $900
+
+8. Alice completed her reporting and release her shared lock.
+
+Shared Lock and Exclusive lock where introduce to ensure consistency in the system.
+Locks are really useful for configuration for Example. Since configuration are generally
+centralized.
+
+
+

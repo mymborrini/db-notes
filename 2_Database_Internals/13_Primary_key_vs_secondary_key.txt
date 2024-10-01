@@ -1,0 +1,26 @@
+Primary key:
+ In the heap of a row-stored database rows are not saved one after the other, for example row number 7 can be
+above row number 1 ecc...
+When we add a primary key we are making a constraint and we organize that table around that key in order to maintein
+order. When we insert a new row it has to maintein the order we constrained before, so this implies a cost in order
+to maintein this order. 
+This is why in Oracle they call this IOT -> index organize table.
+In postgres they call it cluster index.
+
+Organize the table around a cluster index is so much convenient in terms of performance. And the database
+are smart. So if you insert row 1 and then row 8 they don't push it directly one after the other but they leave
+some space between for rows 2,3 ecc... that probably are going to come. 
+That's the reason why in mysql (where the rowId is the same as the primary key) is better 
+to not have a UUID primary key, because with that all the rows are saved radomly and you loose all the advantages of 
+having a primary key alias a clustered index. 
+
+
+
+Secondary key:
+Having the table as a random mess but having a structure which is your secondary key, your index.
+So you maintein a separate structure to organize that value.
+In order to make a query, you have to go to this structure looking for the index, collect all the index pages 
+you need, then go to the heap to actually fetch all the data.
+
+In postgres all you indexes are secondary indexes, you don't have primary indexes which is maintened by the database
+itself... by default, probably there is a way to create a custom clustered index.

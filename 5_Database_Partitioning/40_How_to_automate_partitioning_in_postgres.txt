@@ -1,0 +1,7 @@
+Let's suppose we have a customer table which is going to support until 
+a billion of customers and whant to divide it in 100 partitions, 10 millions each.
+
+let's check the automate_partiotion.js in order to have an idea of how to do it...
+you can also do in postgres itself, but let's see how to do it with a client script
+
+As you can see there is no other methods or queries we didn't see before

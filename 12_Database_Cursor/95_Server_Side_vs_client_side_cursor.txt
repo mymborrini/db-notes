@@ -1,0 +1,48 @@
+To connect to the datbase from a python application for example, you create a cursor and you
+read and write from the database.
+Client side cursor is like when you execute a SELECT statement.
+The query is executed globally and transmitted over the network to your client.
+
+Server side cursor. A cursor is created on the database and only when you need something.
+The client say: give me 10 results, 2 results. The database is fetching the results
+
+For example if you want to populate a large tables from an application. Check the inser1million.py 
+file.
+
+Now let's try to see the difference in client side cursor and server side cursor.
+
+Let's take the file clientCursor.py and see the output, e.g. how much it takes to perform the single
+operation.
+
+Cursor established in 0.02 ms 
+Execute query in 845.14 ms
+Fetching first 50 rows in 0.025 ms
+
+As you can see executing the query takes the most amount of time.
+But then fetching for the results is much more faster.
+
+Let's see the server side cursor.
+The file serversidecursor.py is exactly the same as the clientsidecursor.py except
+for the fact that the cursor is server side and not client side.
+Those are the results:
+
+Cursor established in 0.02 ms 
+Execute query in 3.62 ms
+Fetching first 50 rows in 2.01 ms
+
+As you can see in the client side, you fetch everything and then the fetching operation is
+of course really cheap; in the server side you leave everything on the server, so the operation
+of fetching 
+
+So server side vs Client side PROS and CONS:
+
+ The disadvantage of the client-side cursor is that the memory the client needs is huge.
+
+ The server side cursor relieve the client from the weight of having so much memory to store 
+ the information. But the main problem is: what happen if a lot of client open a lot of
+ cursor, the server will have memory overflowed. 
+ If you use it very moderate and in a smart way, you can find server side cursor are really
+ beneficial. But in general it's better to use client side cursor.
+
+
+

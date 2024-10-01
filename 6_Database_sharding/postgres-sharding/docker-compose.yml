@@ -1,0 +1,43 @@
+version: '2'
+
+services:
+  pgshard1:
+    build: .
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_PASSWORD: postgres
+    hostname: pgshard1
+  pgshard2:
+    build: .
+    ports:
+      - 5433:5432
+    environment:
+      POSTGRES_PASSWORD: postgres
+    hostname: pgshard2
+  pgshard3:
+    build: .
+    ports:
+      - 5434:5432
+    environment:
+      POSTGRES_PASSWORD: postgres
+    hostname: pgshard3
+
+  pgAdmin:
+    image: dpage/pgadmin4
+    hostname: pgAdmin
+    ports:
+      - 5555:80
+    networks:
+      - postgresShardNet
+    depends_on:
+      - pgshard1
+      - pgshard2
+      - pgshard3
+    environment:
+      PGADMIN_DEFAULT_EMAIL: mattia.borrini@hotmail.it
+      PGADMIN_DEFAULT_PASSWORD: postgres
+
+
+networks:
+  postgresShardNet:

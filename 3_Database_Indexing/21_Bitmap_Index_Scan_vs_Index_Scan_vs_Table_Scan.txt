@@ -1,0 +1,93 @@
+Let's see the difference between
+
+- sequence table scan
+- index scan
+- bitmap index scan (which is something really related to postgres)
+
+Let's create a table grades with a sequence and an index:
+
+- create sequence grades_id_seq start 1 increment 1;
+- create table grades (id integer primary key default nextval('grades_id_seq'), 
+g integer,
+firstName text,
+lastName text, 
+address text,    
+bio text,
+name text
+);
+
+- create index g_idx on grades(g);
+
+- insert into grades(g, firstName, lastName , name , address ,bio) select 
+floor(random() * 1000),
+concat('firstName_',floor(random() * 1000) ), 
+concat('lastName_', floor(random() * 1000)),
+concat('name_', floor(random() * 1000)),
+concat('address_', floor(random() * 1000)),
+concat('bio_', floor(random() * 1000))
+ from generate_series(0, 50000);
+
+
+- explain select name from grades where id = 1000;
+
+Index Scan using grades_pkey on grades  (cost=0.15..8.17 rows=1 width=32)
+   Index Cond: (id = 1000)
+
+- explain select name from grades where id < 100;
+Index Scan using grades_pkey on grades  (cost=0.29..11.03 rows=99 width=8)
+   Index Cond: (id < 100)
+
+This is a really quick because in this case because since id is the "primary key" postgres know
+how many rows he has to pull from the table. So this is called RANDOM ACCESS: 
+postgres goes for the index, retrieve the index, then go to the table, retrieve the data, go to the index,
+retrieve the index, then go to the table... and again and again and again until it completes the query.
+
+So now let's make this:
+- explain select name from grades where id > 100;
+
+Since it's 100000 rows more or less so postgres thinks It's better to fetch all the table and then remove
+the rows with id less then 100 which are a lot of less comparing to the ones which have more then 100.
+
+Seq Scan on grades  (cost=0.00..2387.03 rows=99902 width=8)
+   Filter: (id > 100)
+
+Since it could be really expensive to a RANDOM ACCESS. postgres decides to do a SEQUENTIAL SCAN.
+SEQUENTIAL scan is a scan make directly to the table, without using the index, because in this 
+case it's way cheaper...
+
+So few rows => INDEX SCAN, many rows => SEQUENTIAL SCAN directly on the table.
+
+So the border line is: If you have a lot of rows... but not so much to not use the index, so what 
+postgres do is a bitmap scan
+
+For example this query:
+- explain select name from grades where g < 95;
+
+Bitmap Heap Scan on grades  (cost=120.36..1373.60 rows=9299 width=8)
+   Recheck Cond: (g < 95)
+   ->  Bitmap Index Scan on g_idx  (cost=0.00..118.03 rows=9299 width=0)
+         Index Cond: (g < 95)
+
+In this case postgres use a bitmap scan so it will collect all the row_ids from the index
+data structure before going to the table.
+
+
+Let's see in more details:
+
+Bitmap Index Scan on g_idx  (cost=0.00..118.03 rows=9299 width=0)
+         Index Cond: (g < 95)
+
+=> Scan g_idx and collect all row_ids that has g < 95. Since postgres collect rows in pages
+you will have to pull all the pages from the table. This means there are rows which has not
+g < 95 
+
+Recheck Cond: (g < 95)
+
+=> thats the reason why a recheck is necessary => to filter all the rows where g is not less then 95
+
+The beauty of the bitmap index scan is it can be used with multiple indexes, for example g and id:
+
+- It creates two bitmap once for g and once for id, then it will merge all the data through
+a BitmapAnd, fetch all the data from the table and then Recheck the condition, because you pull pages not
+rows.
+

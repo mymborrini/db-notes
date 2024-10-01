@@ -1,0 +1,22 @@
+Now let's check the problem from the lesson before by trying using a web application
+Check the booking-system folder
+
+It's more or less the same we did on the database but in a js code.
+
+The problem with this design is that double booking can easily happened
+If you have a lot of requests arrives in the same time It could happened that two request booked 
+in the same time, and the last one wins
+
+So what do we do?  We then apply what we learned about postgres we changed this line
+
+=> const sql = "SELECT * FROM seats where id = $1 and isbooked = false"
+
+Into this line
+
+=> const sql = "SELECT * FROM seats where id = $1 and isbooked = false FOR UPDATE"
+
+Adding for update means that we have done an exclusive lock on that row. 
+So if another request arrives and tries to fetch that row (in postgres at least) it has to wait
+for the lock to be released.
+
+In oracle you can specify a timeout, for example. 

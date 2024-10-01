@@ -1,0 +1,90 @@
+The summary of this Demo:
+
+- Spin up two Postgres instance with docker
+- make one master and onother one standby
+- Connect standby to master
+- Make master aware of the standby
+
+Create two docker instances, on pmaster and the other pstandby
+(I will use a docker-compose)
+
+Remember that the data should be identical at starting
+Look at the docker compose in postgres-replica folder.
+
+When we run the docker-compose we have 2 instances but they are not identical
+
+Now we need to stop both, why? Because we need to copy the master to the standby, how?
+Very basic in the postgres-replica folder
+
+- mv standby_data standby_data_bk
+- cp -R master_data standby_data
+
+There are also pgbackup which is really useful to perform this kind of operations
+
+Then restart the docker-compose
+and check everything works properly
+
+Perfect, everything works!!
+
+Now we have to update some file only in the master
+- cd master_data
+- change the pg_hba.conf
+
+(Remember this is just a Demo, do not use postgres as a Replication user)
+Add this line to the end of the file configuration
+
+- host replication postgres all md5
+
+Now we have to allow the standby to connect to the master in the replication
+
+- cd standby_data
+- change the postgresql.conf
+
+You have to change the primary connection info (primary_conninfo)
+You have to enable it removing the # 
+and write
+
+primary_conninfo = 'application_name=standby1 host=localhost port=5432 user=postgres password=postgres'
+
+- application name: is a unique identifier for each node (in this case this node is standby1)
+- host: is the host of the master (in this case localhost)
+- port: is the port of the master (in this case 5432)
+- user: the username to connect with (in this case postgres )
+- password: the password to connect with (in this case postgres )
+
+This is all we need to do in order to enable the standby
+
+Now in the same folder (standby_data) we need to create a file called 
+standby.signal
+- touch standby.signal
+
+This is necessary to make this instance readonly (and this is enough)
+
+We have finished with the work in the standby and now we can move to the master
+
+- cd master_data
+- change the postgresql.conf
+
+And change the follwing line 
+
+synchronous_standby_names
+
+Remove the # and write
+synchronous_standby_names = 'first 1 (standby1)'
+
+This means allow commits until at least one (in this case standby1) commit as well.
+Is the same thing we talked about before for Asyncrhonous and Synchronous requests
+
+This is a little bit silly since you have only one application
+but for example writing:
+
+'first 2 (standby1,standby2,standby3)' Means the first 2 between this 3 instances
+'any 1 (standby1,standby2,standby3)' Means at least one of this 3 should succed before I commit
+
+Now let's check if everything is ok by running the docker-compose command
+
+I tried to change some configuration but the result is more or less the same.
+When I make a change it goes in timeout... and commit the changes on the masgter
+without be replicant to the replica
+
+

@@ -1,0 +1,84 @@
+This is just to explain the explain in postgres sql.
+Let's start with the * query 
+
+
+- explain select * from employees;
+The result will be something like this;
+
+Seq Scan on employees  (cost=0.00..173530.03 rows=10000003 width=27)
+
+What does this mean? A seq scan is equevalent to a full table scan.
+Sometimes postgres do a Parallel seq scan with two threads.
+
+Cost -> cost consist of two numbers separeted by .. the first one represents
+how many ms took me to fetch the first page and in this case cost 0, but this number 
+can increase if you have to do some order by or some aggregation.
+The second one is the total amount of time.. an estimation...
+
+The rows are the total rows and this is really useful instead of doing a count, count can kills your performance
+The with are the sum of bytes for every column.
+
+
+- explain select * from employees order by name;
+
+Index Scan using employees_name on employees  (cost=0.56..642557.51 rows=10000003 width=27)
+As you can see the planning cost grow up a little bit since you're doing an order by.
+It's not so bad since it uses index
+
+now let's create a new column title which has no index at all
+
+-- alter table employees add column title varchar(200);
+-- update employees set title = concat('Title_', "id" ); 
+
+Now back to another query
+
+- explain select * from employees order by title;
+
+Gather Merge  (cost=889236.53..1855323.57 rows=8280168 width=40)
+   Workers Planned: 2
+   ->  Sort  (cost=888236.50..898586.71 rows=4140084 width=40)
+         Sort Key: title
+         ->  Parallel Seq Scan on employees  (cost=0.00..206800.84 rows=4140084 width=40)
+
+In this case as you can see postgres go directly to the heap since there is no index, and 
+pull everything in order to sort it. You have to read from the inner thing to the up
+The sort number is pretty critical. Since we are two threads we need to merge the result at the end
+and this takes such a time too.
+
+
+- explain select id from employees;
+Seq Scan on employees  (cost=0.00..264762.01 rows=9936201 width=4)
+ JIT:
+   Functions: 2
+   Options: Inlining false, Optimization false, Expressions true, Deforming true
+
+The width = 4 since by default is an integer.
+Consider that if you have a lot of rows it can grow up more then 2 billions and in this case it
+could be difficult to maintein... this is why you should parse it as a Long number
+
+
+- explain select name from employees;
+Seq Scan on employees  (cost=0.00..264762.01 rows=9936201 width=23)
+ JIT:
+   Functions: 2
+   Options: Inlining false, Optimization false, Expressions true, Deforming true
+
+This is more or less the same as before but the width is 23.. consider that -> the larger the number
+the larger the tcp package that return back to your application.
+
+
+Let's see how index works
+- explain select * from employees where id = 10;
+
+ Index Scan using employees_pkey on employees  (cost=0.43..8.45 rows=1 width=40)
+   Index Cond: (id = 10)
+
+As you can see the index condition..  is id = 10
+In this case we jump to the heap in otder to do the query... instead if me make
+
+
+- explain select id from employees where id = 10;
+Index Only Scan using employees_pkey on employees  (cost=0.43..4.45 rows=1 width=4)
+   Index Cond: (id = 10)
+
+As you can see it's an index scan only query.

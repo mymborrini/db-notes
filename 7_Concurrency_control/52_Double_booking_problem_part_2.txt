@@ -1,0 +1,79 @@
+There are alternatives to the select for update...
+In order to understand of it actually works the for update statement to overbook a seat.
+
+We are trying to book a seat and we want to prevent the problem where tow people booked the same seat
+
+The way "for update" takes an exclusive lock of the lock, so this transaction is free to do wathever
+it takes until the lock is realized and the other transactions have to wait for the lock to be released.
+
+This is a way to serialize the transaction, but we can do in another approach, we can make an update
+directly and then check if the update was succeed or not.
+
+So let's start:
+Term1: begin;
+Term2: begin;
+
+Term1: update seats set isbooked=true,name='Mattia' where id =1 and isbooked=false;
+Term2: update seats set isbooked=true,name='Marco' where id =1 and isbooked=false;
+
+So what happened right now?
+We updated the transaction and the row, since it's an update lock we acquire an exclusive lock on that
+row.
+
+Seat 1 is locked by the transaction 1 implicity, so transaction number 2 is blocked. why? What exactly happened?
+
+We wanna update something so we make a where clause. What the database do?
+postgres did a traversal search on the btree of the ids to find id number 1, it found the tuple
+and postgres locked it because of the transaction management of postgres.
+
+transaction 2 did the exact same things, but when it arrives at the tuple, it sees that it's locked 
+so it pause, until the lock is released. Consider that we are in read committed isolation level. This
+is very important, otherwise (if we would be in read uncommitted isolation level) the row will not found.
+Why? Because the isbooked (id=15) will be true because of the update of the transaction 1.
+
+If you instead of:
+Term2: update seats set isbooked=true,name='Marco' where id =1 and isbooked=false;
+Do this:
+Term2: update seats set isbooked=true,name='Marco' where id =1 and isbooked=true;
+
+postgres will return:
+UPDATE 0
+
+Because the row is not found so it does not see the lock.
+
+
+Now:
+Term1: commit;
+
+Now two things happened, and at this end we will be at the mercy of the database engine:
+- The lock of the row will be realesed, so what happened to transaction number 2?
+Since it has already seen the row with isbooked = 0, and is ready to update it.
+
+IT DOES NOT UPDATE IT. 
+
+But why? Since as I said before postgres already see the row (otherwise it will not pause)
+postgres did a trick.
+It refresh the row to look at the final result, and when it sees the row it checked if the
+isbooked = 0... and is not since transaction 1 has already commited its changes.
+
+Another very important thins to understand is that postgres stores the information of the lock
+of a row, in the row itself, this additional columns belong s to the heap. So when you go to the heap
+to fetch that row, the transaction see the lock and decide tho block itself.
+So when the lock is realesed postgres decides to refresh the row to see if it still exists (filtered by
+the where conditions).
+
+BUT THIS IS POSTGRES!!!!
+
+Mysql does it completly different. (Even if the end result is the same in case of mysql). But the main
+question is.
+CAN YOU GUARANTEE THE SAME RESULT?
+ABSOLUTLY NOT.
+
+Postgres and other databases are pessimistic concurrency control, which means they always take a lock
+Because mainteing locks management is expensive but you can avoid problems like this.
+optimistic means that nobody takes a lock but at the end of the transaction i detect the change, and 
+if I found some I will fail the transaction.
+
+Nosql generally prefer optimistic approach.
+
+

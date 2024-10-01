@@ -1,0 +1,153 @@
+We gonna use docker: 
+- we gonna spin up a postgres instance
+- create table and insert 10 million rows
+- create partitions
+
+Run a new docker instance:
+- docker run -d -e POSTGRES_PASSWORD=postgres --name pgmain postgres:13
+
+Run a command inside
+- docker exec -it pgmain psql -U postgres
+
+Create table grades and populate it
+
+- create table grades_original(id serial not null, g int not null);
+- insert into grades_original(g) select floor(random() * 100) from generate_series(0, 10000000);
+
+Now create an index 
+- create index grades_org_idx on grades_original(g);
+
+Now make some queries
+- explain analyze select count(*) from grades_original where g = 30;
+
+Aggregate  (cost=2324.43..2324.44 rows=1 width=8) (actual time=1472.788..1472.820 rows=1 loops=1)
+   ->  Index Only Scan using grades_org_idx on grades_original  (cost=0.43..2084.43 rows=96000 width=0) (ac
+tual time=0.029..743.727 rows=100134 loops=1)
+         Index Cond: (g = 30)
+         Heap Fetches: 55
+ Planning Time: 0.091 ms
+ Execution Time: 1472.894 ms
+
+
+
+Now let's make a range query
+- explain analyze select count(*) from grades_original where g between 30 and 35;
+
+ Finalize Aggregate  (cost=12296.34..12296.35 rows=1 width=8) (actual time=2765.807..2768.800 rows=1 loops=
+1)
+   ->  Gather  (cost=12296.12..12296.33 rows=2 width=8) (actual time=2765.731..2768.738 rows=3 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         ->  Partial Aggregate  (cost=11296.12..11296.13 rows=1 width=8) (actual time=2702.523..2702.548 ro
+ws=1 loops=3)
+               ->  Parallel Index Only Scan using grades_org_idx on grades_original  (cost=0.43..10667.65 r
+ows=251389 width=0) (actual time=0.040..1361.175 rows=200522 loops=3)
+                     Index Cond: ((g >= 30) AND (g <= 35))
+                     Heap Fetches: 267
+ Planning Time: 3.067 ms
+ Execution Time: 2768.887 ms
+
+ So now that we check the time and have something to confront with, let's do Partitioning
+
+ - create table grades_parts (id serial not null, g int not null) partition by range(g);
+
+ Now you are responsible to create all the tables partitions
+
+ - create table g0035 (like grades_parts including indexes); 
+ It's just a normal table for now, let's create all the parts of the table
+
+ - create table g3560 (like grades_parts including indexes); 
+ - create table g6080 (like grades_parts including indexes); 
+ - create table g80100 (like grades_parts including indexes); 
+
+And now we have to attach the partitions one by one the the major table
+- alter table grades_parts attach partition g0035 for values from (0) to (35);
+- alter table grades_parts attach partition g3560 for values from (35) to (60);
+- alter table grades_parts attach partition g6080 for values from (60) to (80);
+- alter table grades_parts attach partition g80100 for values from (80) to (100);
+
+Now this table is empty, if you describe this table:
+- \d+ grades_parts; 
+you can see it will have 4 partitions but no index right Now
+
+Now we can copy all the data from original to parts
+- insert into grades_parts select * from grades_original;
+
+Every time you insert something in that table , the database decies which partition that
+row goes to based on the value of g
+
+So now let's try to make the same queries then before:
+- select count(*) from grades_parts;
+
+If you check:
+- select max(g) from g0035;
+You will see that the maximum value is 34 so this means that 35 belongs to another partition,
+so when you type to(35) means 35 excluded, and this is why is important to type to (100), to include 99
+
+Now if you will have to create an index
+- create index graders_parts_idx on grades_parts(g);
+
+THis will create the same index in all the partitions.
+The indexes will have different names
+
+Now let's retry the queries we have done before...
+- explain analyze select count(*) from grades_parts where g = 30;
+
+Aggregate  (cost=2180.43..2180.44 rows=1 width=8) (actual time=1497.098..1497.124 rows=1 loops=1)
+   ->  Index Only Scan using g0035_g_idx on g0035 grades_parts  (cost=0.43..1947.43 rows=93200 width=0) (ac
+tual time=0.085..764.353 rows=100134 loops=1)
+         Index Cond: (g = 30)
+         Heap Fetches: 0
+ Planning Time: 0.505 ms
+ Execution Time: 1497.221 ms
+
+ As you can see the partition hit is the first one, as expected. BUT the time is more or less the same...
+ 
+ To look at the advantages you should look at the size of the indexes
+ - select pg_relation_size(oid), relname from pg_class order by pg_relation_size(oid) desc;
+
+ pg_relation_size |                    relname                    
+------------------+-----------------------------------------------
+        362479616 | grades_original
+        126853120 | g0035
+         90570752 | g3560
+         72540160 | g6080
+         72531968 | g80100
+         69361664 | grades_org_idx
+         24289280 | g0035_g_idx
+         17350656 | g3560_g_idx
+         13901824 | g6080_g_idx
+         13901824 | g80100_g_idx
+
+As you can see the partition size are really smaller compared to the original one. 
+The grades_org_idx is more or less 69MB, pretty small compared to the 16GB of RAM this computer have
+But one of the reason of this is because of the id is integer
+
+The individual indexes are a lot of time smaller, so if the index is not an int but a UUID instead for
+example. The differences in values will be way bigger.
+
+Now let's see an interesting property of posgtgres:
+- show ENABLE_PARTITION_PRUNING;
+
+Is on, but let's see if it's off, what happens?
+
+- set ENABLE_PARTITION_PRUNING = off;
+
+and then 
+
+- explain select count(*) from grades_parts where g = 30;
+
+Aggregate  (cost=2659.79..2659.80 rows=1 width=8)
+   ->  Append  (cost=0.43..2426.78 rows=93203 width=0)
+         ->  Index Only Scan using g0035_g_idx on g0035 grades_parts_1  (cost=0.43..1947.43 rows=93200 widt
+h=0)
+               Index Cond: (g = 30)
+         ->  Index Only Scan using g3560_g_idx on g3560 grades_parts_2  (cost=0.43..4.45 rows=1 width=0)
+               Index Cond: (g = 30)
+         ->  Index Only Scan using g6080_g_idx on g6080 grades_parts_3  (cost=0.43..4.45 rows=1 width=0)
+               Index Cond: (g = 30)
+         ->  Index Only Scan using g80100_g_idx on g80100 grades_parts_4  (cost=0.43..4.45 rows=1 width=0)
+               Index Cond: (g = 30)
+
+As you can see it hit all the four partitions. So partitions with this options ON is completly useless
+

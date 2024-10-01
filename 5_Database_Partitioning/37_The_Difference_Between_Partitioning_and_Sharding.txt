@@ -1,0 +1,13 @@
+Partitioning vs Sharding
+
+- partition splits big table into multiple tables in the same database, client is agnostic.
+- Sharding splits big table into multiple tables across multiple database servers
+- partition table name changes, (or schema)
+- Sharding everything is the same but servers changes
+
+In partition the client is agnostic, is the database that decides which tables hits based on the where
+clause in the query
+
+In Sharding the client is not agnostic he should know which server to connect in order to make query
+The client is aware of the shard... this is not something i really like
+

@@ -1,0 +1,14 @@
+All queries MUST succeed. If one fails all should rollback
+
+Example:
+Account 1 1000$
+Account 2 500$
+
+Send 100$ from Account 1 to Account 2
+
+BEGIN TX1
+1 ) Check if Account 1 has 100$ -> SELECT BALANCE from Account where id = 1;
+2 ) UPDATE Account set BALANCE = BALANCE - 100 where id = 1;
+3 ) DATABASE crash
+
+If the transaction is not atomic now Account 1 has 100$ less and Account 2 still has the same amount

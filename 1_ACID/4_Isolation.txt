@@ -1,0 +1,109 @@
+Can my inflight transaction see changes made by other transactions?
+
+Read phenomena
+Isolation Levels
+
+This is a really critical property
+
+As a lack of Isolation you gonna get the read phenomena
+Isolation levels are levels that DATABASE can implements to fix the read phenomena
+
+
+There are 3/4 READ phenomena
+------------------------------------
+
+- Dirty reads
+- Non-repeatable reads
+- Phantom reads
+- (Lost updates)
+
+
+##### Dirty reads example:
+
+Sales:
+Product_1 qty: 10 price: $5
+Product_2 qty: 20 price: $4
+
+Task: Create a report of this (qty * price)
+
+BEGIN TX1
+TX1: SELECT PID, QTY*PRICE from sales => [(Product_1, 50), (Product_2, 80)]
+BEGIN TX2
+TX2: UPDATE sales SET QTY = QTY + 5 where PID = 1;
+TX1: SELECT SUM(QTY*PRICE) FROM sales => $155 (15*5 + 20*4) (Instead of $130)
+COMMIT TX1
+ROLLBACK TX2
+
+In this case you give a bad report since TX2 rollback
+
+
+##### Non-repeatable read example:
+
+Sales:
+Product_1 qty: 10 price: $5
+Product_2 qty: 20 price: $4
+
+Task: Create a report of this (qty * price)
+
+BEGIN TX1
+TX1: SELECT PID, QTY*PRICE from sales => [(Product_1, 50), (Product_2, 80)]
+BEGIN TX2
+TX2: UPDATE sales SET QTY = QTY + 5 where PID = 1;
+COMMIT TX2
+TX1: SELECT SUM(QTY*PRICE) FROM sales => $155 (15*5 + 20*4) (Instead of $130)
+COMMIT TX1
+
+In this case is a non repeatable read since in the same transaction you have to different 
+reads of the same values
+
+
+##### Phantom Read Example:
+
+Sales:
+Product_1 qty: 10 price: $5
+Product_2 qty: 20 price: $4
+
+Task: Create a report of this (qty * price)
+
+BEGIN TX1
+TX1: SELECT PID, QTY*PRICE from sales => [(Product_1, 50), (Product_2, 80)]
+BEGIN TX2
+TX2: INSERT into sales values ('Product_3', 10, 1)
+COMMIT TX2
+TX1: SELECT SUM(QTY*PRICE) FROM sales => $140 (10*5 + 20*4 + 10*1) (Instead of $130)
+COMMIT TX1
+
+In this case you are selecting you are getting extra row... this is really harder to fix
+respect the previous one
+
+
+ISOLATION Levels
+-----------------------
+
+Read uncommitted 
+-> No Isolation, any change from the outside is visible to the transaction
+You're gonna get all the read phenomena
+
+Read committed (most DATABASE implements that)
+-> Each query in a transaction only sees committed stuff (AT THE TIME of the query)
+So Dirty reads are fixed BUT NOT non-repeatable reads and phantom read 
+
+Repeatable read
+-> Each query in a transaction only sees committed updates at the beginning of transaction
+This is really powerful it saves you from non-repeatable reads BUT phantom read 
+still exists
+
+In order to implements this some database implements versioning, when you first read you get a 
+version and everytime you read that record you have to be sure that the version you are reading
+is the same. 
+Some database implements write lock this another approach, so nobody can write, 
+but it's a little exapensive.
+
+Serializable
+-> transaction are Serialized 
+This is the slowest. Each transaction is Serialized and you cannot run two transaction at 
+the same time, so always one after the other.
+
+There is a lock on the entire database so it's really expensive, but you are protected against 
+phantom read too 
+

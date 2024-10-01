@@ -1,0 +1,32 @@
+Phantom reads happens in concurrent transaction
+When another transaction insert a row and you should see another rows
+
+tsx1:
+ begin transaction;
+ select * from sales; (5 rows)
+ select pid, sum(price) from sales group by pid; -> 1 | 40 (for example)
+
+tsx2:
+ begin transaction;
+ insert into sales (pid, price, date) values (1, 15, 'feb-7-2021');
+ commit;
+
+tsx1:
+ select pid, sum(price) from sales group by pid; -> 1 | 50 (the sum has changed)
+
+So you are getting funky results, this most of the time is undesirable
+How can we fix this: isolation level -> serialization
+ begin transaction isolation level serializable;
+
+Anything that I read does not depend on other transaction.
+And I don't see the row inserted. This is true for every databases, EXCEPT postgres
+POSTGRES provides this kind of isolation level even at repeatable read isolation level.
+
+THIS IS VERY SPECIAL FOR POSTGRES, MYSQL IF YOU DID A Repeatable READ ISOLATION WILL NOT protect
+YOU FROM Phantom READ;
+
+For all others MYSQL ecc you have to implements serializable isolation level... or some pessimistic lock... 
+If someone change this, don't allow me to read it.
+
+
+

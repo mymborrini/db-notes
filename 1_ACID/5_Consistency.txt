@@ -1,0 +1,25 @@
+Consistency in Data 
+Consistency in reads
+
+Consistency in Data:
+- Defined by the user (the user Defined in the table schema)
+- Referential integrity (foreign keys)
+- Atomicity (refer the problem in Atomicity when the database crush, this should not be happened)
+Lack of Atomicity gives inconsistency in your Data
+- Isolation (refer the problem in Isolation)
+Lack of Isolation gives inconsistency in your Data
+
+Consistency in Reads:
+If a transaction update X and another transaction starts read, it should give the value of X
+If a transaction committed a change will a new transaction immediatly see the change?
+
+When you have one server everything works perfectly fine. But when you create replica of that server, 
+for horizontal scaling. Since the secondary node takes time to get the new value you updated in the primary
+node you can read an old value.
+
+Thats the reason why a lot of people say ok I give up on Consistency, and I gave you a better scalability 
+(horizontaly) so NOsql came into picture. Relational database are really hard to implements a leader node
+and a follower node, noSql are way easier
+-> Eventual Consistency
+
+CAP theorem

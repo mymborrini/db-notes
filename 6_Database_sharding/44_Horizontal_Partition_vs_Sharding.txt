@@ -1,0 +1,6 @@
+Horizontal partition vs Sharding
+- HP splits big table into multiple tables in the same database
+- Sharding splits big table into multiple table across multiple database servers
+- HP table name change (or schema)
+- Sharding everything is the same, but server change
+

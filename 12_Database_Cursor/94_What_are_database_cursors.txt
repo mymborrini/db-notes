@@ -1,0 +1,72 @@
+It's always a bad idea to work with a large set of ResultSet. 
+If you have really a large tables like more than 12 millions rows, even if you apply 
+a filter. Chanches are that it will return a lot of rows anyway
+It's not onyl a problem with the execution time, but with the execution plan too. Cause it
+takes a lot of time for the database to choose the best index to use, and furthermore if you have
+to broadcast this results trough a TCP connection too, it will takes a lot
+of work even for that.
+
+And above all the client must have the space in memory to store all that results, and 
+sometimes this is really something impossible to do.
+
+In order to solve this we will use the DATABASE CURSOR, (Server side cursor).
+It sounds like this:
+Database, I'm about to fetch this result, but don't give me the result right now; create
+a cursor and then once you create the cursor, I'm going to ask you to fetch results from 
+that cursor. Where you can plan and fetch those rolls for me and then return just tje ones 
+I asked for.
+
+Let's see this in practice. First of all cursor nees to be inside a transaction:
+
+ begin; 
+ declare c cursor for select id from grades where g between 90 and 100;
+
+-- In this case it does not execute the query, it just create the plan to execute 
+the query. So if I then:
+
+ fetch c;
+
+It will return only the first row for this query.
+If I say 
+
+ fetch c;
+
+again it will returns me the second row and so on. You can play along with it how much 
+you like.
+
+You can even ask for 
+ 
+ fetch last c
+
+And this will return you the last entry for the query
+
+So which are the PROS of the cursor:
+
+ Saves Memory:
+ especially in the client side, since you can work with only a piece of the 
+ huge resultset.
+ 
+ Streaming 
+ When you want to pull the rows and as you continue pulling the rows, your can stream them
+ to another websokcet connection. You can stream into a bunch of groups, your connection, and 
+ you can just continue pulling values.
+
+ You can cancel the cursos if needed:
+ For example if you creare a cursor for millions of rows but at half the job you see the it's enough
+ to work with a smaller group, you can simply delete the cursor.
+
+ Paging:
+ You can paging with cursor but it' actually not really a easy task to do.
+
+ Running stored procedure:
+ They are really useful to run in stored procedure especially for migrations.
+
+So which are the CONS of the cursor:
+ 
+ They are stateful, so there is a memory allocated for them in the database
+ That means if you made another request to another server, to another process,
+ that process has no idea of your cursor, you cannot share the cursor essentialy.
+ Because that's just a property of the transaction.
+
+ Your transaction is gonna be running for a long time, and this is not good for databases
+ for example DDL cannot be executed if a transaction is on the fly

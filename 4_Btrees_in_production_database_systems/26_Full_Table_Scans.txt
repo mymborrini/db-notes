@@ -1,0 +1,9 @@
+Full Table Scan
+
+- To find a row in a large table we perfom full table scan.
+- Reading large tables is slow
+- Requires many I/Os to read all pages
+- We need a way to reduce the "search space"
+
+DBMS are not dump they are smart they split the table working with multithreading but it is
+still slow comparing to indexes

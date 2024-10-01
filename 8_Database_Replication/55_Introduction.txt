@@ -1,0 +1,6 @@
+Replication envolve sharing infomraiton as to ensure consistency
+between reduntant databases
+
+- Master-Backup vs MultiMaster-Replication
+- Synchronous vs Asyncrhonous Replication
+- Pros and Cons

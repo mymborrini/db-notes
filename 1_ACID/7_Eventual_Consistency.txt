@@ -1,0 +1,68 @@
+Like said before there are two separate type of consistency:
+- Consistency of DATA
+- Consistency of Read
+
+
+Consistency of DATA
+--------------------
+
+Example:
+
+Table: PICTURES
+ID(PK)  LIKES
+1         2
+2         1
+
+Table: PICTURE_LIKE
+USER(PK)  PICTURE_ID(PK)(FK)
+Jon           1
+Edmond        1
+Jon           2
+
+The data consistency type emerged when you have a lot of FK and a DATABASE schema with a lot of collections
+In this example consistency is granted and relational database are really good for that. You can touch one
+record and be sure that all the FK are updated or deleted. No Sql is way different you don't have this kind
+of consistency between collections or even inside the same collections you can have really different document,
+so No Sql really suffer for this type of consistency.
+
+
+Consistency of Read
+-----------------------
+
+Example:
+
+I updated a value to X. Consistency in reads means that if I want to read this value with another transaction
+X should be returned. For this type of consistency both sql and no sql suffer greatly.
+If you have one single server, sql is probably the best solution in this case, but for the most of time this is
+not the case. If you have to scale your application you have to create a leader node and a follower nodes.
+
+Eventual Consistency cames in game in this case. 
+
+Example:
+
+Z (primary node) y1 (secondary node) y2 (secondary node)
+
+We want to read from y1
+
+I want to update my value to X in Z node and this works but at the same time, another transaction want to read
+from y1 the value. But it got the previous value since it still not updated -> This is not consistent. 
+Consider Z, y1, y2 are three instances of PSQL, this is not consistent either even if it is sql.
+Then the new Value is updated from Z to y1 and y2 and a new transaction will read the value and this time the 
+value is consistent. This is the meaning of Eventual Consistency.
+
+We really need to clarify that Eventual Consistency is not a term used only in NO Sql but in SQL too. Both model
+are affected by the same problem
+
+This is the same problem when you introducing a cache.
+
+So this is a problem of software engineering. Can we tolerate it?
+
+
+Resume
+--------
+
+If a transaction committed a change will a new transaction immediately see the change?
+Both relational and NOSql databases suffer from this when we want to scale horizontally or introduce caching
+-> Eventual consistency
+
+

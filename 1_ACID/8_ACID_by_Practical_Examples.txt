@@ -1,0 +1,98 @@
+Terminal Commands:
+Run docker image:
+ docker run --name pgacid -d -e POSTGRES_PASSWORD=postgres postgres:13
+
+Enter into postgres command:
+ docker exec -it pgacid psql -U postgres
+
+Now we are gonna create a table
+ create table products (pid serial primary key, name text, price float, inventory integer);
+ create table sales (saleid serial primary key, pid integer, price float, quantity integer);
+
+Pid is a foreign key to products table but for now we keep it as a simple integer
+
+Now populate:
+ insert into products(name, price, inventory) values('Phone', 999.99, 100);
+
+Let's test ACID:
+Let's sell 10 Phone
+  begin transaction;
+  select * from products;
+  update products set inventory = inventory - 10;
+  select * from products;
+  
+Now if I crash (exit command), if not for automicity I have 10 phone less;
+
+  insert into sales (pid, price, quantity) values(1, 999.99, 10);
+  select * from sales;
+
+Now (I'm not committed), go to another terminal and do the same query
+ select * from products;
+ select * from sales;
+I dont't see the changes the first transaction did since it does not commit anything
+
+Now go back to the first terminal
+ commit;
+
+Now every data is visible through everyone since it's been flushed
+
+Mongo db for example does not have (for a long time at least) atomicity through multiple document,
+and people were fine with that
+
+Now let's populate a little bit more and make it consistent:
+ insert into products(name, price, inventory) values('Earbuds', 99.99, 200);
+ insert into sales (pid, price, quantity) values(1, 999.99, 5);
+ insert into sales (pid, price, quantity) values(1, 999.99, 5);
+ insert into sales (pid, price, quantity) values(2, 99.99, 10);
+ insert into sales (pid, price, quantity) values(2, 89.99, 10);
+ insert into sales (pid, price, quantity) values(2, 79.99, 20);
+ update products set inventory = 80 where pid = 1;
+ update products set inventory = 160 where pid = 2;
+
+Let's test a little bit of isolation
+ 
+ tsx1:
+ begin transaction;
+ select pid, count(pid) from sales group by pid;
+
+ tsx2: 
+ begin transaction;
+ insert into sales (pid, price, quantity) values(1, 999.99, 10);
+ update products set inventory = inventory - 10 where pid = 1;
+ commit;
+
+ tsx1:
+ select pid, price, quantity from sales;
+
+ The two queries in tsx1 does not match at all, you produce incosistency;
+
+ tsx1:
+  rollback;
+
+Let's start again but this time:
+ tsx1:
+ begin transaction isolation level repeatable read;
+In this case i will see the data I have, only at the moment of the transaction begin
+ select pid, count(pid) from sales group by pid;
+
+ tsx2:
+ begin transaction;
+ insert into sales (pid, price, quantity) values(1, 999.99, 10);
+ update products set inventory = inventory - 10 where pid = 1;
+ commit;
+
+ tsx1:
+ select pid, price, quantity from sales;
+
+ I will see the correct number of rows, not incosistent with the previous query, 
+ even if it's a little more expensive, but I have a consistent view.
+ 
+ tsx1:
+ commit;
+
+if I make the query again:
+ select pid, price, quantity from sales;
+I'm out of my transaction so I will see all the rows even the one inserted by tsx2
+
+
+

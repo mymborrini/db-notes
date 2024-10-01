@@ -1,0 +1,47 @@
+Pros of Sharding:
+
+- Scalability
+ - Data
+ - Memory
+- Security (users can access certain shards)
+- Optimal and Smaller index size
+
+Shading gives you "perfect" Scalability for data, Memory and resources in general, even CPU
+You can literally horizontally scale things
+
+You also get Security. For example, if you have certain customer data which can be analyze 
+only by certain people you can put all this protected data in a particular shard.
+
+The Smaller index you get, the quicker index becomes
+
+Cons of sharding:
+- Complex client (aware of the shard)
+- Transactions across shards problem
+- RollBacks
+- Schema changes are hard
+- Joins 
+- Has to be something you know in the query
+
+The client becomes really complicated since has to be aware of the shard
+Transactions are really a problem... how do you set a Transaction with 2 rows of the table
+one to insert and one to delete, you have to do a distributed Transactions and this is really 
+complicated, so of course RollBacks can be really complicated
+
+Schema changes are even harder, if you want to add a field (column) you have to run 
+query in every shard
+
+Joins are really a nightmare, you have to make joins across databases and there could be some cases 
+where you have to collect all the data so joins with select + union all... Really complicates query
+Joins are generally the main reason, why horizontal partition is preferred in some cases over sharding
+
+One of the main problem is still in the get query... if the query is based on the shared key, that will
+work because you know exactly which shard to look for, but what if the where condition you're looking for
+doesn't concern the shared key.... this is really a big problem
+You are forced to hit all the datbaase in order to get where the key exists... or even unique index
+get the same problem.
+
+
+
+
+
+

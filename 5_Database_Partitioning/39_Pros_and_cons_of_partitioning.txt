@@ -1,0 +1,22 @@
+Pros of partitioning:
+
+- Improves query performance when accessing a single partition
+- Sequential scan vs scattered index scan 
+(this depends on the datbaase and it's plan, it depends of the number of rows returned)
+- Easy bulk loading (attach partition)
+You can bulk data into a really big table and then attach the partitions
+- Archive old data that are barely accessed into cheap storage
+
+The first one is true for really large number of rows, or for partition index with more 
+size then an integer like for example a varchar
+
+
+Cons of partitioning:
+
+- Updates that move row from partition to another could be really slow or fails (sometimes)
+- Inefficient query could accidentaly scan all partitions resulting in slow query performance
+- Schema changes could be challenging (DBMS could manage it though)
+
+Update could be really slow because you have to do a delete and then a insert.
+
+

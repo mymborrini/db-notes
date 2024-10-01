@@ -1,0 +1,19 @@
+A transaction is a collection of queries
+
+One unit of work
+
+Eg Account Deposit (SELECT, UPDATE, UPDATE)
+
+Commit and rollback are two concepts attached by transaction
+
+Example:
+Account 1 1000$
+Account 2 500$
+
+Send 100$ from Account 1 to Account 2
+
+BEGIN TX1
+1 ) Check if Account 1 has 100$ -> SELECT BALANCE from Account where id = 1;
+2 ) UPDATE Account set BALANCE = BALANCE - 100 where id = 1;
+3 ) UPDATE Account set BALANCE = BALANCE + 100 where id = 2;
+COMMIT

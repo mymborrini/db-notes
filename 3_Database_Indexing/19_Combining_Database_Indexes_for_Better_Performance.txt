@@ -1,0 +1,210 @@
+The followings are some of the best practice you can create indexes with
+
+We are gonna execute 4 different queries on the following table:
+
+- create table test(a int, b int, c int);
+- insert into test(a,b,c) select 
+floor(random() * 1000),
+floor(random() * 1000),
+floor(random() * 1000)
+ from generate_series(0, 200);
+
+The 4 queries are:
+- select c from test where a = 70;
+- select c from test where b = 100;
+- select c from test where a = 73 and b = 123;
+- select c from test where a = 86 or b = 65;
+
+So right now we are gonna create a configuration with different indexes on a and b
+
+- An index on a and an index on b
+- A composite index on a b 
+- A composite index on a b and an index on b
+
+So let's start:
+- create index on test(a);
+- create index on test(b);
+
+- explain analyze select c from test where a = 70;
+
+ Seq Scan on test  (cost=0.00..4.51 rows=1 width=4) (actual time=0.065..0.071 rows=0 loops=1)
+   Filter: (a = 70)
+   Rows Removed by Filter: 201
+ Planning Time: 16.926 ms
+ Execution Time: 1.481 ms
+
+In this case is a seq scan not a bitmap. In the previous lesson (18) the behaviour is different. Why?
+It depends if the table is big... More is bigger more are the cache dbms creates a bitmap
+
+In this case of course is an index scan because we have to pull c from the table. So we have to connect to the table
+again.
+
+- explain analyze select c from test where b = 100;
+
+ Seq Scan on test  (cost=0.00..4.51 rows=1 width=4) (actual time=0.043..0.053 rows=0 loops=1)
+   Filter: (b = 100)
+   Rows Removed by Filter: 201
+ Planning Time: 0.161 ms
+ Execution Time: 0.135 ms
+
+ Same as before
+
+ - explain analyze select c from test where a = 73 and b = 123;
+  Seq Scan on test  (cost=0.00..5.01 rows=1 width=4) (actual time=0.044..0.051 rows=0 loops=1)
+   Filter: ((a = 73) AND (b = 123))
+   Rows Removed by Filter: 201
+ Planning Time: 0.143 ms
+ Execution Time: 0.685 ms
+
+ In this case postgres analyze the two index data structure in parallel. If this should have a bitmap it will 
+ create a data structure parallel investigating the two indexes. Create a list of tuples and then investigate
+ the heap for receiving all the data needed
+
+
+- explain analyze select c from test where a = 86 or b = 65;
+
+Seq Scan on test  (cost=0.00..5.01 rows=2 width=4) (actual time=0.108..0.133 rows=1 loops=1)
+   Filter: ((a = 86) OR (b = 65))
+   Rows Removed by Filter: 200
+ Planning Time: 0.617 ms
+ Execution Time: 0.199 ms
+
+ For a sequence scan he did exactly the same, for a bitmap it's more or less pretty the same but of course the 
+ rows returned are so much more.
+
+ Now drop the index:
+ - drop index test_a_idx,test_b_idx;
+
+ And create a composite one:
+ - create index on test(a,b);
+
+ In this case we have an index that compose both value. This index is really fast on queries which combine 
+ the two index, especially the and clause
+
+- explain analyze select c from test where a = 70; 
+
+ Seq Scan on test  (cost=0.00..4.51 rows=1 width=4) (actual time=0.031..0.039 rows=0 loops=1)
+   Filter: (a = 70)
+   Rows Removed by Filter: 201
+ Planning Time: 2.891 ms
+ Execution Time: 0.099 ms
+
+Postgres decide to use the index despite me querying on a only. Why? Because a was on the left side when I create the index
+and that matters, because since is on the left side the value can be easy scanned
+
+In fact if I increase to table size of 2 millions rows more or less and then do:
+
+- explain analyze select c from test where b = 100;
+
+Gather  (cost=1000.00..11974.05 rows=1020 width=4) (actual time=8.064..44.239 rows=1027 loops=1)
+   Workers Planned: 2
+   Workers Launched: 2
+   ->  Parallel Seq Scan on test  (cost=0.00..10872.05 rows=425 width=4) (actual time=0.102..28.189 rows=342 loops=3)
+         Filter: (b = 70)
+         Rows Removed by Filter: 341085
+ Planning Time: 0.215 ms
+ Execution Time: 52.049 ms
+
+ Since b is on the right side of the composite index it would take so much time to scan the index and then go back to the heap
+ So postgres decide to go directly to the heap. If I don't increase the table it will use the index, because since the table contains
+ only 200 rows is convenient to use the index.
+
+A multicolumn B-tree index can be used with query conditions that involve any subset of the index's column, but the index is most 
+efficient when there are constraints on the leading (leftmost) columns. The exact rule is that equality constraints on leading columns,
+plus any inequality constraints on the first column that does not have an equality constraint, will be used to limit the portion of
+the index that is scanned. constraints on columns to the right of these columns are checked in the index, so they save visits to 
+the table proper, but they do not reduce the portion of the index that has to be scanned. For example, given an index on (a, b, c)
+and query condition where a = 5 and b >= 42 and c < 77 the index would have to be scanned from the fist entry with a = 5 and b = 42 up
+to the last entry with a = 5. Index entries with c >= 77 would be skipped but they's still have to be scanned through. This
+index could in principle be used for queries that have constraints on b and/or c with no constraint on a but the entire index 
+would have to be scanned so in most cases the planner prefer using a sequential table scan, instead of using the index
+
+Now:
+- explain analyze select c from test where a = 73 and b = 123;
+Index Scan using test_a_b_idx on test  (cost=0.42..8.45 rows=1 width=4) (actual time=0.024..0.058 rows=2 loops=1)
+   Index Cond: ((a = 73) AND (b = 123))
+ Planning Time: 0.170 ms
+ Execution Time: 0.132 ms
+
+That was incredibly fast... because the index is combined;
+This is the best case scenario... queries with constraints only on a or a and b combined.
+
+Of course it will cost more to create a composite index despite a single one, but the performance is
+remarkable
+
+How about or:
+- explain analyze select c from test where a = 86 or b = 65;
+
+Gather  (cost=1000.00..13142.47 rows=2037 width=4) (actual time=4.876..57.069 rows=1976 loops=1)
+   Workers Planned: 2
+   Workers Launched: 2
+   ->  Parallel Seq Scan on test  (cost=0.00..11938.77 rows=849 width=4) (actual time=0.066..41.448 rows=659 loops=3)
+         Filter: ((a = 86) OR (b = 65))
+         Rows Removed by Filter: 340769
+ Planning Time: 0.108 ms
+ Execution Time: 72.267 ms
+
+ Very bad postgres does not use index but hit the table directly because postgres thinks is faster.
+ But if I put a limit on it like
+ 
+ - explain analyze select c from test where a = 86 or b = 65 limit 100;
+ Limit  (cost=0.00..1026.08 rows=100 width=4) (actual time=0.182..8.877 rows=100 loops=1)
+   ->  Seq Scan on test  (cost=0.00..20901.24 rows=2037 width=4) (actual time=0.056..6.697 rows=100 loops=1)
+         Filter: ((a = 86) OR (b = 65))
+         Rows Removed by Filter: 52274
+ Planning Time: 0.081 ms
+ Execution Time: 9.990 ms
+
+ it will hit the index since you put a limit on it.
+
+Now let's add an index on b
+
+- create index on test(b);
+
+Now if I query on a
+
+-  explain analyze select c from test where a = 70;
+ Bitmap Heap Scan on test  (cost=24.31..2620.08 rows=1018 width=4) (actual time=0.351..12.848 rows=1006 loops=1)
+   Recheck Cond: (a = 70)
+   Heap Blocks: exact=920
+   ->  Bitmap Index Scan on test_a_b_idx  (cost=0.00..24.06 rows=1018 width=0) (actual time=0.219..0.228 rows=1006 loops=1)
+         Index Cond: (a = 70)
+ Planning Time: 7.030 ms
+ Execution Time: 22.415 ms
+
+ Same as before... postgres prefares to use a bitmap since the table is big... but the process is the same.
+
+- explain analyze select c from test where b = 100;
+ Bitmap Heap Scan on test  (cost=12.33..2610.27 rows=1020 width=4) (actual time=10.681..23.123 rows=1018 loops=1)
+   Recheck Cond: (b = 100)
+   Heap Blocks: exact=924
+   ->  Bitmap Index Scan on test_b_idx  (cost=0.00..12.07 rows=1020 width=0) (actual time=10.541..10.550 rows=1018 loops=1)
+         Index Cond: (b = 100)
+ Planning Time: 0.074 ms
+ Execution Time: 32.620 ms
+
+ As expected now it uses the index we created before in order to pump the query
+
+ - explain analyze select c from test where a = 73 and b = 123;
+
+Index Scan using test_a_b_idx on test  (cost=0.42..8.45 rows=1 width=4) (actual time=0.027..0.055 rows=2 loops=1)
+   Index Cond: ((a = 73) AND (b = 123))
+ Planning Time: 0.078 ms
+ Execution Time: 0.118 ms
+
+ exactly as before
+
+ - explain analyze select c from test where a = 86 or b = 65;
+ Bitmap Heap Scan on test  (cost=37.15..4074.79 rows=2037 width=4) (actual time=4.527..26.304 rows=1976 loops=1)
+   Recheck Cond: ((a = 86) OR (b = 65))
+   Heap Blocks: exact=1694
+   ->  BitmapOr  (cost=37.15..37.15 rows=2038 width=0) (actual time=4.156..4.198 rows=0 loops=1)
+         ->  Bitmap Index Scan on test_a_b_idx  (cost=0.00..24.06 rows=1018 width=0) (actual time=0.203..0.212 rows=979 loops=1)
+               Index Cond: (a = 86)
+         ->  Bitmap Index Scan on test_b_idx  (cost=0.00..12.07 rows=1020 width=0) (actual time=3.917..3.926 rows=998 loops=1)
+               Index Cond: (b = 65)
+ Planning Time: 0.127 ms
+ Execution Time: 43.301 ms
+
+ Now that we put an index on b as you can see the bitmap is created from both the composte index (used as an index of a) and 
+ the index on b. Hit the table then.

@@ -1,0 +1,56 @@
+
+Is this right to work with billions of row table?
+How to anticipate in the design of the database that this table can grow very large in the future.
+
+How do we work with this kind of table?
+
+3 topic to discuss.
+
+
+1 - BRUTE FORCE WITH THE TABLE.
+
+I need a row => Go multithreading/multiprocessing chunck the table into multiple segment and search in parallel.
+This is in general of big data do work.
+
+2 - CAN I AVOID PROCESSING THE ENTIRE TABLE?
+
+Best approach is to use indexing, so you create a btree structure in the desk. This will avoid searching for the
+entire table. search a subset of the table (the indexes) and then go to the table to fetch all the information.
+So in this case instead of working with billions of rows, you can work with just a few millions
+
+3 - CAN I REDUCE THIS SUBSEGMENT EVEN MORE?
+
+Partitioning. Horizonzal Partitioning breaks the table so now you have multiple minitable on the disk. But now...
+How do I know which partition to search? With partition key. A structure similar to indexing fully managed by
+the database engine.
+
+Now with partition you can distribute them through multiple host doing sharding, which adds a little bit of complexity.
+
+Now you complicate a little bit the client for transactions ecc...
+But now you have SHRADING -> PARTIONING -> INDEXES and from billions of rows, now you have only a few thousends Probably.
+
+The general idea is to limit what we are searching.
+
+But if you have a row with billions of rows. 
+A right question could be, WHY do you have a table with billions of rows?
+Can we solve the problem?
+
+For example if you have a table like twitter:
+ID | username | picture | followId
+
+We can do a simplest thing by making.
+ID | username | picture | followCount (integer) | followers (JSON)
+
+This has less rows then the previous one (Think about the bridge of followId and ID) because everything is set up in two fields.
+So now the problem moves on the write operation, but this solution is much more scalable then the other one.
+
+The followers can be updated async so this writing stuff does not concern the client performance.
+
+
+If you database is for transactions, consider that BRUTE FORCE could be the best solution since when you 
+start to partition the table transactions are more and more difficult to perfom and make consistent
+
+
+
+
+

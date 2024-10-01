@@ -1,0 +1,10 @@
+﻿
+Sharding is a process where you spreads the data into multiple database.
+This is way to speed up querying and scaling the system
+
+- What is sharding?
+- Consistent hashing
+- Horizontal Partition vs Sharding
+- Example (code with postgres)
+- Pros and Cons
+

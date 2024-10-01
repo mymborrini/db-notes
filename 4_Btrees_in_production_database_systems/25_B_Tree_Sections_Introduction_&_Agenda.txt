@@ -1,0 +1,19 @@
+
+This subject is really difficult to implements in practice is more like
+theoretical knowladge. Since when you analyze the query you're more interested
+into the path the query takes to get a particular result
+
+B-Trees vs B+Trees
+
+Problem:
+- Full Table Scan -> This is the lowest query possible
+
+Solution:
+- B-Tree with its limitations (the limitations of the original B-tree algorithm)
+and why its changed into 
+
+- B+Tree, this is the algorithm used in the database right now. The original B-Tree is no 
+longer implemented
+
+- B+Tree storage cost in MYSQL(InnoDb default) vs POSTGRES since this issues are related to 
+the database engine

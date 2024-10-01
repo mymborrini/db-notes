@@ -1,0 +1,138 @@
+This will introduce how tables and indexes are stored in database so we can know the cost in terms of performance of
+queries
+
+Storage concepts:
+ - Table
+ - Row_id
+ - Page
+ - IO
+ - Heap data structured
+ - Index data structured b-tree
+ - Notes
+
+
+Table: 
+A simple butch of columns and rows, for a storage concepts they are only a butch of bits
+
+ | emp_id | emp_name | emp_dob  | emp_salary |
+ | 2000   | Hussein  | 1/2/1988 | 100,000    |
+ | 3000   | Adam     | 3/2/1977 | 200,000    |
+ | 4000   | Ali      | 5/2/1982 | 300,000    |
+
+Row_id:
+Generally databases does not work with the column we gave them but they works with other columns like row_id in this
+case. 
+- Most databases create it's own system maintenance. 
+- In certain databases (mysql -innoDB) it is the same as the primary key, but other databases like Postgres have a syste
+column row_id (tuple_id)
+
+ | row_id | emp_id | emp_name | emp_dob  | emp_salary |
+ | 1      | 20     | Hussein  | 1/2/1988 | 100,000    |
+ | 2      | 30     | Adam     | 3/2/1977 | 200,000    |
+ | 3      | 40     | Ali      | 5/2/1982 | 300,000    |
+
+Page:
+- Depending on the storage model (row vs column store), the rows are stored and read in logical pages.
+- The database doesn't read a single row, it reads a page or more in a single IO and we get a lot of rows
+  in that IO (it depends on how do you partion your database).
+- Each page has a size (8Kb in postgres, 16Kb in Mysql) but you can configure it
+- Assume each page holds 3 rows in this example, with 1001 rows you will have 1001/3 = 333 pages.
+- In the end a page is nothing more that a location of a butch of bytes, a page can contain many rows
+- but it depends on the side of the row
+- The page is stored on Disk
+- Understand this is really important because make a query slow or fast
+
+ | row_id | emp_id | emp_name | emp_dob   | emp_salary |
+ | 1      | 20     | Hussein  | 1/2/1988  | 100,000    |
+ | 2      | 30     | Adam     | 3/2/1977  | 200,000    |
+ | 3      | 40     | Ali      | 5/2/1982  | 300,000    |
+ | .....  | ...    | ....     | ....      | .....      |
+ | 1000   | 100    | Eddard   | 1/27/1999 | 250,000    |
+
+IO:
+- IO operation (input/output) is a read request to the disk
+- We try to minimize this as much as possible
+- An IO can fetch 1 page or more depending on the disk partitions and other factors
+- An IO cannot read a single row, its a page with many rows in them. You get them for free
+- You want to minimize the number of IOs as they are expensive.
+- Some IOs in operating systems goes to the operating system cache and not disk.
+- Postgres relys a lot of that, so it does not go directly to the disk, instead in a disk cache
+- In the end if you ask for select name from table_name; you get all the pages and this query is really expensive
+
+Heap:
+- A heap is a collection of pages which represents points to my data
+- The Heap is a data structured where the table is stored with all its pages one after another
+- This is where the actual data is stored including everything
+- Traversing the heap is very expensive as we need to read so many data to find what we want
+- That is why we need indexes to help tell us exactly what part of the heap we need to read. What page(s)
+  of the heap we need to pull
+- In the end we called heap the data structur in the disk or in the system cache where all the pages are collected
+  is not a so crazy stuff like the java heap.
+
+Indexes:
+ - An index is another data structure separate from the heap that has "pointers" to the heap
+ - The "pointers" are connected directly to the row_id.
+ - It has part of the data and used to quickly search for something.
+ - You can index on one column or more.
+ - Once you find a value of the index, you go to the heap to fetch more information where everything is there
+ - Index tells you EXACTLY which page to fetch in the heap instead of taking the hit to scan every page in the heap
+ - The index is also stored as pages and cost IO to pull the entries of the index.
+ - The smaller the index, the more it can fit in memory the faster the search
+ - Popular data structure for index is b-trees
+
+
+ Example of how index are stored:
+
+ IO 1 : on the index to find the page/row
+ IO 2 : on the heap to pull exactly the page(s) we found in the index
+
+ Index of emp_id table is read like this -> 10(1,0) === emp_id(row_id, page)
+ ---------------------------------------------------------
+ | Index on EMP_ID                                        |
+ |                                                        |
+ | Page 0: 10(1,0)|20(2,0)|30(3,0) ...                    |
+ | Page 1: 100(1,0)|110(2,0)|120(3,0) ...                 |
+ | Page N: ...9980(998,333)|9990(999,333)|10000(1000,333) |
+ |                                                        |
+ ---------------------------------------------------------
+
+ --------------------------------------------
+ |   Heap                                   |
+ |                                          |
+ |  Page 0 emp_ids(1,2,3)                   | 
+ |  Page 1 emp_ids(4,5,6)                   |
+ |  Page 2 emp_ids(7,8,9)                   |
+ |   ....                                   |
+ |  Page 333 emp_ids(998,999,1000)          |
+ --------------------------------------------
+
+Remember that we have to do another IO to the index table
+The index table is not that easy since it's a b-tree structure, but for this example we can keep it simple
+
+
+Example of query with no index:
+ In this case emp_id has no index, so if you want to query for
+ select * from emp where emp_id = 1000;
+ -> Fetch page 1, has any row id = 1000 ? No! -> Discard page 1
+ -> Fetch page 2, has any row id = 1000 ? No! -> Discard page 2
+ -> Fetch page 3, has any row id = 1000 ? No! -> Discard page 3
+ ................................
+ -> Fetch page 333, has any row id = 1000 ? Yes! -> Got it
+
+This is really expensive even if some databases create a parallel process for this kind of search.
+
+Example of query with index
+select * from emp where emp_id = 1000;
+Go to the employee table, fetch inside the tree until you find 1000 and then you have the page and the row id!!
+Then you can go directly to the correct page and pull the page.
+
+Notes:
+ - The heap table sometimes can be organized around a single index. This is called a cluster index or an Index
+   Organized Table (IOT Oracle terminology).
+ - Primary key is usually a clustered index unless otherwise specified. 
+   (except for postgres where the primary key is also a secondary key)
+ - Mysql InnoDB always have a primary key (clustered index) other indexes point to the primary key "value".
+   In case of IOT using a UUID id kills the writing performance, since everytime you have to hit different pages.
+   (Probably better understandable with index b-tree lecture) 
+ - Postgres only have secondary indexes and all indexes point directly to the row_id which lives in the heap.
+   For every update you have to update all the indexso this is something to keep in count 

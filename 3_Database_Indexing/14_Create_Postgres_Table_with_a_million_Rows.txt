@@ -1,0 +1,10 @@
+In order to test features you need to populate your test database with millions of data.
+- docker run -e POSTGRES_PASSWORD=postgres --name pg1 postgres:13 
+- docker exec -it pg1 psql -U postgres
+
+Create Temperature Table first:
+- create table temp(t int);
+
+To populate I use native functions of postgres -> generate_series is like a for cycle in range
+and random() takes a random number between 0 and 1
+- insert into temp(t) select random() * 100  from generate_series(0, 10000000);

@@ -1,0 +1,59 @@
+Is the idea of acquiring databases lock and release them in phases
+So a transaction is splitted in two phases, the first one you acquire everything you
+need and in the second one you release everything. The trick here is that when you start
+release you cannot acquire anymore.
+
+The double booking example:
+When you try to build a cinema booking system and two users are trying to book the exact
+same seat at the exact same milliseconds, both the users payed but only who can complete the
+transaction first will have the seat.
+
+So what we wanna do, the person who first payed will reject the second person.
+
+- create table seats(id serial primary key, isbooked boolean not null, name varchar(255));
+
+Populate it with 100 seats all empty at the beginning;
+- insert into seats(isbooked) select false from generate_series(0,100);
+
+
+Term1: begin transaction;
+Term2: begin transaction; 
+Term1: select * from seats where id = 13; (Great it's available!!)
+
+id | isbooked | name 
+----+----------+------
+ 13 | f        | 
+
+Term2: select * from seats where id = 13; (Great it's available!!) Do the exact same thing
+Term1: update seats set isbooked=true,name='Mattia' where id=13; (It works)
+Term2: update seats set isbooked=true,name='Marco' where id=13; 
+(Waiting... since the resouce is locked by Term1 and cannot be updated directly)
+Term1: commit;
+Now the lock is released and Term2 will finish its update
+Term2: commit;
+
+Now if you make
+- select * from seats where id = 13;
+id | isbooked | name  
+----+----------+-------
+ 13 | t        | Marco
+
+ This is the double booking problem.
+
+Now let's do the twoPhaseLocking... how? by doing a different query at the beginning
+
+Term1: begin transaction;
+Term2: begin transaction; 
+Term1: select * from seats where id = 14 for update; (and by doing this i get an exclusive lock)
+Term2: select * from seats where id = 14 for update; 
+(Now they are stuck for the lock to be released, 
+because they are trying to obtain an exclusive lock but the lock is already taken by Term1 transaction)
+Term1: update seats set isbooked=true,name='Mattia' where id=14;
+Term1: commit;
+
+And the moment I commit Term2, will show the result of the query stuck by the lock.
+id | isbooked |  name  
+----+----------+--------
+ 15 | t        | Mattia
+
+ So Term2 will see that this is locked and will not procede.

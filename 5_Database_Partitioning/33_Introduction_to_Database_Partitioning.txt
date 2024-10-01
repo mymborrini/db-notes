@@ -1,0 +1,13 @@
+
+Partitioning is a technique where you split up a huge table into multiple tables.
+and let the database decide which tables hit based on the where clause
+
+Agenda:
+ - What is Partitioning?
+ - Horizontal Partitioning vs Vertical Partitioning
+ - Partitioning types
+ - Partitioning vs Shrading
+ - Demo
+ - Prons & Cons
+ - Summary
+ 

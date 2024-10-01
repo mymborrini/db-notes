@@ -1,0 +1,92 @@
+Let's create a table with no indexes:
+
+ - create table grades (id integer, name varchar(200), g integer);
+
+ Let's populate it:
+ - insert into grades(id, name, g) select row_number() over(), concat('Name_',row_number() over() ), row_number() over() from generate_series(0, 1000);
+
+ As database engineering we are interested in "what the database did to get all the select and the data we need"
+ - explain analyze select name from grades where id = 7;
+
+ Seq Scan on grades  (cost=0.00..24.51 rows=1 width=8) (actual time=0.023..0.116 rows=1 loops=1)
+   Filter: (id = 7)
+   Rows Removed by Filter: 1000
+ Planning Time: 0.047 ms
+ Execution Time: 0.172 ms
+
+ So it goes directly to the table, to the heap , starting to retrieve rows and ask if the id 7 is inside that row.
+
+ Now let's create and index for id
+
+ - create index grades_idx on grades(id);
+
+Now let's do the same exact query we did before
+
+ - explain analyze select name from grades where id = 7;
+
+ Index Scan using grades_idx on grades  (cost=0.28..8.29 rows=1 width=8) (actual time=0.058..0.079 rows=1 loops=1)
+   Index Cond: (id = 7)
+ Planning Time: 0.332 ms
+ Execution Time: 0.166 ms
+
+ As you can see it is an index scan... we quickly found that looking in the index data structure, but then since
+ we are asking for the name, which is not an index, we have to hit the heap and the table in order to get all the
+ information, and we have to get all the page where id 7 is, so with all the information
+
+If you change the query a little bit and write:
+ - explain analyze select id from grades where id = 7;
+
+ (This is a littly bit silly but look at the result)
+
+ Index Only Scan using grades_idx on grades  (cost=0.28..4.29 rows=1 width=4) (actual time=0.053..0.073 rows=1 loops=1)
+   Index Cond: (id = 7)
+   Heap Fetches: 0
+ Planning Time: 0.070 ms
+ Execution Time: 0.136 ms
+
+ As you can see it's an index only scan... This query does not hit the table, the index information is enough
+
+ This query is a little bit silly but then we can make something different.
+Drop the index and recreate it with a little difference;
+
+- drop index grades_idx;
+- create index grades_idx on grades(id) include (name);
+
+In this case name is defined as NON-KEY COLUMN 
+This is really useful, we can push this information into the index so we can pull them from very efficiently;
+
+Let's do the first query again.
+ - explain analyze select name from grades where id = 7;
+
+ Index Only Scan using grades_idx on grades  (cost=0.28..4.29 rows=1 width=8) (actual time=0.287..0.301 rows=1 loops=1)
+   Index Cond: (id = 7)
+   Heap Fetches: 0
+ Planning Time: 5.705 ms
+ Execution Time: 0.600 ms
+
+ In this case as you can see you use an index only scan... exactly the one we wanted.
+
+ Now if you do:
+ - explain analyze select g from grades where id = 7;
+ Index Scan using grades_idx on grades  (cost=0.28..8.29 rows=1 width=4) (actual time=5.912..5.929 rows=1 loops=1)
+   Index Cond: (id = 7)
+ Planning Time: 0.075 ms
+ Execution Time: 5.987 ms
+
+ In this case it returns to the index scan since the g has no index
+
+ PAY ATTENTION:
+  The cost of the non key column... It increase the size of the index... and this could be really bad, because
+  it' s begin slower to query the index, since you  fetch more and more pages, to get into the thigs that
+  you are looking for;
+
+
+Moreover if you make a query like this:
+  - explain analyze select id from grades where name = 'Name_7';
+  Seq Scan on grades  (cost=0.00..24.51 rows=1 width=4) (actual time=0.810..1.228 rows=1 loops=1)
+   Filter: ((name)::text = 'Name_7'::text)
+   Rows Removed by Filter: 1000
+ Planning Time: 0.096 ms
+ Execution Time: 1.309 ms
+
+ It will return to the table

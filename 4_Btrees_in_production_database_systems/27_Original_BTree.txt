@@ -1,0 +1,163 @@
+Btree
+
+- Is a balanced data structure for fast traversal
+- Btree has Nodes
+- In Btree of "m" degree some nodes can have (m) child nodes
+- Nodes has up to (m-1) elements
+
+Given m degree(levels) a btree should follow the following rules:
+- Every node has at most m children
+- Every non-leaf node (except root) has at least m/2 child nodes
+- The root has at least two children if it's not a leaf node
+- A non-leaf node with k children contains k - 1 keys
+- All leaves appear in the same level and carry no information
+
+Each internal node's keys act as separation values which divide its subtrees. For example, If
+an internal node has 3 child nodes (or subtrees) then it must have 2 keys: a1 and a2. All 
+values in the leftmost subtree will be less than a1, all values in the middle subtree will be
+between a1 and a2, and all values in the rightmost subtree will be greater than a2.
+
+Example:
+
+      .7 . 16 .
+   ___|  |    |___
+  |      |        |
+.1.2.5. .9.12.  .18.21.
+
+=> Internal Nodes:
+  Internal nodes are all nodes except for leaf nodes and root node. They are usually represented as an
+  ordered set of elements and child pointers. Every internal nodes contains a maximum of U children and a
+  minimum of L children. Thus, the number of elements is always 1 less than the number of child pointers 
+  (the number of elements is between L-1 and U-1). 
+  In the example above the elements are the numbers the child pointers are the dot (.) 
+  U must be either 2L or 2L - 1; therefore each internal node is
+  at least half null. The realtionship between U and L implies that two half-full nodes can be joined to make a 
+  legal node, and one full node can be split into two legal nodes (if there's room to push one element up into the 
+  parent). These properties make it possible to delete and insert new values into a Btree and adjust the tree to
+  preserve the Btree properties.
+  
+=> The root node:
+  The root node's number of children has the same upper limit as internal nodes, but has no lower limit. For example,
+  when there are fewer than L-1 elements in the entire tree the root will be the only node in the tree with no children
+  at all
+
+=> Leaf nodes:
+  Leaf nodes do not carry any information. The internal nodes that are one level above the leaves  are what could be called
+  "leaves": these nodes only store keys (at most m-1, and at least m/2 -1 if they are not the root) and pointers to nodes 
+  carry information.
+
+
+IN PRACTICAL:
+
+WHAT IS BTREE
+BTree is a self-balancing data structure based on a specific set of rules for searching, inserting and deleting the data
+in a faster and memory efficient way. In order to achieve this, the following ruels are followed to create a BTree.
+
+A BTree is a special kind of tree in a data structure. It helps you to preserves data sorted and allowed various operations
+like insertion, searching and deletion in less time.
+
+RULES FOR BTREE:
+ - All leaves will be created at the same level
+ - BTree is determined by a number of degree, which is also called "order" (specified by an external actor, like a programmer)
+   referred as 
+   m
+
+ - The left subtree of the node will have lesser values than the right side of the subtree. This means that the nodes are also
+   sorted in ascending order from left to right.
+ - The maximum number of child nodes, a root node as well as its child nodes can contain are calculated by this formula:
+   m - 1
+
+For example: m = 4 => max keys = 4 - 1 = 3
+
+Order 4
+Index: 60,70,75,51,52,65,68,77,78,79
+
+=>                    (3 keys)          
+                    | 60  |  70  | 75 |
+         ___________|     |      |    |___________________
+        |                _|      |___                     |
+  | 51 | 52 |           |            |            | 77 | 78 | 79 |
+                  | 65 | 68 |   | 72 | 73 |
+
+                  (4 child nodes)
+
+- Every node except root must contain minimum keys of 
+  m/2 -1
+  So in this case 4/2 - 1 = 1
+
+The minimum number of child node can have is half of the order which is m/2 (the ceiling value is taken)
+All the keys in a node are sorted in increasing order.
+
+WHY USE BTREE
+Here are reasons of using BTree
+ - Reduces the number of reads made on the disk
+ - B Trees can be easily optimized to adjust its size (that is the number of child nodes) according 
+    to the disk size
+ - It is a specially designed technique for handling a bulky amount of data.
+ - It is useful algorithm for databases and file systems.
+ - A good choice to optimize when it comes to reading and writing large blocks of data
+
+
+SEARCH OPERATION
+The search operation is the simplest operation on BTree
+The following algorithm is applied:
+- Let the key (the value) to be searched be "k"
+- Start searching from the root and recurively traverse down.
+- If k is lesser than the root value, search left subtree, if k is greater than the root value, search
+the right subtree
+- If the node has the found k, simply return the node
+- If the k is not found in the node, traverse down to the child with a greater key.
+- If k is not found in the tree return null
+
+INSERT OPERATION (check the pictures)
+
+Since BTree is a self-balancing tree, you cannot force insert a key into just any node
+The following algorithm applies:
+ - Run the search operation and find the appropriate place of insertion.
+ - Insert the new key at the proper location, but if the node has a maximum number of keys already:
+  - The node, along with a newly inserted key, will split from the middle element.
+  - The middle element will become the parent for the other two child nodes.
+  - The nodes must re-arrange keys in ascending order.
+
+See 1_Insert_Btree_Case_MinKeys.png
+
+- search the appropriate position in the node for the key.
+- Insert the key in the target node and check for the rules
+- After insertion, does the node have more than equal to a minimum number of keys, which is 1?
+In this case yes, it does. Check the next rule
+- After insertion, does the node have more than a maximum number of keys, which is 3? In this case no
+This means that the BTree is not violating any rules and the insertion is complete.
+
+See 2_Insert_BTreeCase_MorethanMaxKeys.png
+
+- The node has reached the max number of keys.
+- The node will split, and the middle key will become the root of the rest two nodes. 
+- In this case after inserting (3,5,9,21) so the left bias middle key is 5
+- In case of even number of keys the middle node will be selected by left bias or right bias.
+
+See 3_Insert_BTree.png:
+
+- The node has less than max keys
+- 1 is inserted next to 3 but the ascending order rule is violated
+- In order to fix this, the keys are sorted
+
+See 4_Insert_BTree.png
+
+- The node has keys equal to max keys.
+- The key is inserted to the target node, but it violates the rule of max keys
+- The target node is split, and the middle key by left bias is not the parent of the new child nodes
+- The new nodes are arranged in ascending order.
+
+See the 5_InsertBtree_exampleSolved.png
+
+- Inserting the 4th key makes all the magic ince the 2 should go up to the parent, but the parent
+ has already reached the max number of keys, so even the parent node will split follwing the rule
+
+
+So let's see elements in more details:
+- Each element is a key and a value
+- The value is usually data pointer to the row
+- The key is what you're searching for
+- Data pointer can point primary key (mysql) or tuple (postgres) (that's reason why uber switch from postgress to mysql)
+- A node = disk page
+

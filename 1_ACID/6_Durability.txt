@@ -1,0 +1,5 @@
+Committed transaction must be persisted in a durable non-volatile storage.
+
+If I committed a transaction and after that the DATABASE crash, the values committed shouled be there
+
+In memory DATABASE are by definition not durable

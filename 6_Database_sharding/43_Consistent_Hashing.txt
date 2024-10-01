@@ -1,0 +1,25 @@
+Image you have 3 instances of postgres:
+- pg1 => 5432
+- pg2 => 5433
+- pg3 => 5434
+
+In order to make a query consider having the following input
+In this case is a string but it could be whatever you want
+
+"Input1" 
+
+So what you have to do is to hash the value, and the result of this hash function will be the instance
+of which database instance you have to query. 
+
+hash("Input1") => 5432
+hash("Input2") => 5433
+hash("Input3") => 5434
+
+As long as you give me Consistent input I'm sure I give you Consistent hashing value
+
+How does it works? For example with 3 instances:
+
+hash("Input2") % 3 => [0,1,2]
+
+
+

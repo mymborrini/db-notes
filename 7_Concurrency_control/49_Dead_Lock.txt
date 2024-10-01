@@ -1,0 +1,56 @@
+Now a practical Example of how deadlock happens in databases.
+A deadlock happens when two clients fight for one or more resources. They are waiting for the other 
+clients to release the lock, but noone can release locks.
+Most databases catch this deadlock and fails the transactions when this happens.
+
+Consider having 2 instances of postgres in two terminals:
+- docker exec -it pg1 psql -U postgres
+- docker exec -it pg1 psql -U postgres
+
+Create a table
+- create table test(id integer primary key);
+
+Term1: begin transaction; 
+Term2: begin transaction;
+Term1: insert into test values(20);
+Term2: insert into test values(21); 
+
+Now in terminal 1 (which is not committed yet)
+Term1: insert into test values(21); 
+
+As you can see postgres does not return a response... Why? Because it detached that there is a block
+but it does not know if the second transaction will rollback
+
+Now 
+Term2: insert into test values(20);
+
+ERROR:  deadlock detected
+DETAIL:  Process 56 waits for ShareLock on transaction 658; blocked by process 65.
+Process 65 waits for ShareLock on transaction 659; blocked by process 56.
+HINT:  See server log for query details.
+CONTEXT:  while inserting index tuple (0,4) in relation "test_pkey"
+
+As you can see now postgres detected a deadlock, Because Term1 has been waiting for Term2 to release
+lock of 21 and at the same time Term2 has been waiting for Term1 to release lock of 20... A deadlock
+As you can see for the error detail raise.
+So in the end Term2 transaction was rollback, the lock for 21 is released and Term1 transaction could
+insert the 21 value.
+
+Now rollback everything both in Term1 and in Term2 (to close the transaction)
+Let's see a more optimistic approach
+
+Term1: begin transaction;
+Term2: begin transaction;
+
+Term1: insert into test values(20);
+Term2: insert into test values(30);
+Term2: insert into test values(20);
+
+As we discussed before this waits for the lock to be released.
+
+Term2: rollback;
+Term1: insert immediatly.
+
+If instead of rollback Term2 commit, then Term1 will failed Because of inserted duplicate primary key
+
+

@@ -1,0 +1,32 @@
+Let's take an example
+
+Table:
+
+ | TID | ID   | Name
+ | 701 | 1    | John
+ | 702 | 2    | Ali
+ | 703 | 3    | Rick
+ | 704 | 4    | Sara
+ | 705 | 5    | Edmond
+
+ BTREE:
+
+        | 2:702  | 4:704 |
+    ____|        |       |___ 
+    |            |          |
+  |1:701|     |3:703|     |5:705|   
+
+
+TID is internal tuple id or ROW ID
+In a btree structure key and value exists in all node and this is the reason why
+btree will be surpassed by b+tree
+
+So let's try to find ID = 3
+
+1) get the root node (this will have thousends of data)
+2) 3 is between 2 and 4 so pull the middle one
+3 ) get the 3 node get 703 row id and pull it from the table
+
+So you can search very efficiently
+
+

@@ -1,0 +1,209 @@
+Difference key vs non Key indexes
+
+When you create and index you specify a field or more then one in order create a btree 
+And that key will be used for searching porpouse. The index contains row pointer to return
+to the table, to fetch the actual row.
+
+Non Key allow you to include in your index some column
+Not to search for but to include
+
+Now let's create a big table with a lot of fields with the purpouse to analyze the cost of this 
+including stuff
+
+- create sequence students_seq start 1 increment 1;
+- create table students (id integer primary key default nextval('students_seq'), 
+g integer,
+firstName text,
+lastName text, 
+middleName text, 
+address text,
+bio text,
+dob text,
+id1 integer,
+id2 integer,
+id3 integer,
+id4 integer,
+id5 integer,
+id6 integer,
+id7 integer,
+id8 integer,
+id9 integer
+);
+
+Let's populate it with 5000000 records
+
+- insert into students(g, firstName, lastName , middleName , address ,bio ,dob ,id1 ,id2 ,id3 ,id4,id5,id6,id7,id8,
+id9) select 
+floor(random() * 1000),
+concat('firstName_',floor(random() * 1000) ), 
+concat('lastName_', floor(random() * 1000)),
+concat('middleName_', floor(random() * 1000)),
+concat('address_', floor(random() * 1000)),
+concat('bio_', floor(random() * 1000)),
+concat('dob_', floor(random() * 1000)),
+floor(random() * 1000),
+floor(random() * 1000),
+floor(random() * 1000),
+floor(random() * 1000),
+floor(random() * 1000),
+floor(random() * 1000),
+floor(random() * 1000),
+floor(random() * 1000),
+floor(random() * 1000)
+ from generate_series(0, 5000000);
+
+ Right now I don't have any indexes except for primary key so:
+
+ - explain analyze select id, g from students where g > 8 and g < 95 order by g desc;
+ ... it takes a long time and then:
+
+ Gather Merge  (cost=142035.37..185596.61 rows=373356 width=8) (actual time=2255.381..7450.829 rows=430026 loops=1)
+   Workers Planned: 2
+   Workers Launched: 2
+   ->  Sort  (cost=141035.34..141502.04 rows=186678 width=8) (actual time=2195.859..3202.848 rows=143342 loops=3)
+         Sort Key: g DESC
+         Sort Method: external merge  Disk: 2576kB
+         Worker 0:  Sort Method: external merge  Disk: 2528kB
+         Worker 1:  Sort Method: external merge  Disk: 2520kB
+         ->  Parallel Seq Scan on students  (cost=0.00..122136.51 rows=186678 width=8) (actual time=6.939..1154.232 rows=143342 loops=3)
+               Filter: ((g > 8) AND (g < 95))
+               Rows Removed by Filter: 1523325
+ Planning Time: 0.083 ms
+ JIT:
+   Functions: 12
+   Options: Inlining false, Optimization false, Expressions true, Deforming true
+   Timing: Generation 2.410 ms, Inlining 0.000 ms, Optimization 2.855 ms, Emission 16.768 ms, Total 22.034 ms
+Execution Time: 10408.090 ms
+
+
+   Gather merge -> it hit the table
+   It takes 10 seconds to return the result...
+   It does a sort, I don't have an index on g. and moreover as you can see
+   Rows Removed by Filter: 1523325
+   It removes 1523325 rows, rows, that he fetch but does not use
+  
+That's obviously slow... consider that using a limit does not help so much... it has less time in the fetching phase... but
+the data has to be sorted anyway
+
+- create index stu_gra_idx on students(g);
+
+We always choose order instead of caos since order is more predictable
+
+Let's execute the query again
+- explain analyze select g from students where g > 8 and g < 95 order by g desc;
+
+Gather Merge  (cost=137909.92..181470.46 rows=373350 width=8) (actual time=2322.647..7480.288 rows=430026 loops=1)
+   Workers Planned: 2
+   Workers Launched: 2
+   ->  Sort  (cost=136909.89..137376.58 rows=186675 width=8) (actual time=2284.295..3286.458 rows=143342 loops=3)
+         Sort Key: g DESC
+         Sort Method: external merge  Disk: 2576kB
+         Worker 0:  Sort Method: external merge  Disk: 2528kB
+         Worker 1:  Sort Method: external merge  Disk: 2512kB
+         ->  Parallel Bitmap Heap Scan on students  (cost=6132.64..118011.34 rows=186675 width=8) (actual time=39.662..1248.495 rows=143342 loops=3)
+               Recheck Cond: ((g > 8) AND (g < 95))
+               Rows Removed by Index Recheck: 551624
+               Heap Blocks: exact=19431 lossy=11106
+               ->  Bitmap Index Scan on stu_gra_idx  (cost=0.00..6020.63 rows=448020 width=0) (actual time=53.873..53.880 rows=430026 loops=1)
+                     Index Cond: ((g > 8) AND (g < 95))
+ Planning Time: 0.158 ms
+ JIT:
+   Functions: 12
+   Options: Inlining false, Optimization false, Expressions true, Deforming true
+   Timing: Generation 2.605 ms, Inlining 0.000 ms, Optimization 1.596 ms, Emission 10.771 ms, Total 14.972 ms
+ Execution Time: 10411.066 ms
+
+ As you can see it does not do a parallel scan but an parallel bitmap heap scan 
+
+ It's still really slow... it does not change that much
+ But here is what happens when you put a limit;
+
+- explain analyze select id, g from students where g > 8 and g < 95 order by g desc limit 1000;
+Limit  (cost=0.43..835.31 rows=1000 width=8) (actual time=0.046..33.317 rows=1000 loops=1)
+   ->  Index Scan Backward using stu_gra_idx on students  (cost=0.43..374044.13 rows=448020 width=8) (actual time=0.027..14.581 rows=1000 loops=1)
+         Index Cond: ((g > 8) AND (g < 95))
+ Planning Time: 0.452 ms
+ Execution Time: 42.860 ms
+
+ As you can see it's way way faster.. In this case it does not use a bitmap scan but an index scan Backward this is because of
+ the limit so the row to consider are considerably less. Backward means
+ that it has to hit the table anyway (See 15th lesson for the difference between bitmap scan and index scan).
+
+The reason why it's faster is because we did queries before so probably we hit the operating system cache
+
+In order to know this information we can type another query
+- explain (analyze,buffers) select id, g from students where g > 8 and g < 95 order by g desc limit 1000
+Limit  (cost=0.43..835.31 rows=1000 width=8) (actual time=0.135..30.023 rows=1000 loops=1)
+   Buffers: shared hit=840 read=140
+   ->  Index Scan Backward using stu_gra_idx on students  (cost=0.43..374044.13 rows=448020 width=8) (actual time=0.116..11.878 rows=1000 loops=1)
+         Index Cond: ((g > 8) AND (g < 95))
+         Buffers: shared hit=840 read=140
+ Planning:
+   Buffers: shared read=4
+ Planning Time: 1.011 ms
+ Execution Time: 38.917 ms
+
+ As you can see the buffers shared hit is really high, (Buffers: shared hit=840 read=140) this means that a lot of information has been cached before.
+ Shared read means that are not hitting the cache. So in this previous case it returns 140 
+ 840 / 140 -> they are only an indication of the IOs
+
+
+ If I did the same query again
+ - explain (analyze,buffers) select id, g from students where g > 8 and g < 95 order by g desc limit 1000
+ Limit  (cost=0.43..835.31 rows=1000 width=8) (actual time=0.049..23.919 rows=1000 loops=1)
+   Buffers: shared hit=980
+   ->  Index Scan Backward using stu_gra_idx on students  (cost=0.43..374044.13 rows=448020 width=8) (actual time=0.019..9.175 rows=1000 loops=1)
+         Index Cond: ((g > 8) AND (g < 95))
+         Buffers: shared hit=980
+ Planning:
+   Buffers: shared hit=4
+ Planning Time: 0.104 ms
+ Execution Time: 31.219 ms
+
+ As you can see the share hit now are the whole pages...
+
+ If I modify the query a little bit;
+
+- explain (analyze,buffers) select id, g from students where g > 10 and g < 20 order by g desc limit 1000
+Limit  (cost=0.43..3239.51 rows=1000 width=8) (actual time=0.253..31.413 rows=1000 loops=1)
+   Buffers: shared hit=856 read=110
+   ->  Index Scan Backward using stu_gra_idx on students  (cost=0.43..143647.11 rows=44348 width=8) (actual time=0.232..13.346 rows=1000 loops=1)
+         Index Cond: ((g > 10) AND (g < 20))
+         Buffers: shared hit=856 read=110
+ Planning Time: 0.114 ms
+ Execution Time: 40.738 ms
+
+ As you can see the read are bigger then the hit... which means that he hat to hit the heap
+
+The IO cost much is to get hit to the table;
+So let's drop this index and create a new one
+
+- drop index stu_gra_idx;
+- create index stu_gra_idx on students(g) include(id);
+
+That's a very common execution path that we are doing
+
+Now let's do the first query again... the one without limit
+- explain (analyze,buffers) select id, g from students where g > 8 and g < 95 order by g desc;
+
+ Index Only Scan Backward using stu_gra_idx on students  (cost=0.43..13884.83 rows=448020 width=8) (actual time=0.048..3207.643 rows=430026 loops=1)
+   Index Cond: ((g > 8) AND (g < 95))
+   Heap Fetches: 0
+   Buffers: shared hit=259 read=1177
+ Planning:
+   Buffers: shared hit=20 read=4
+ Planning Time: 0.482 ms
+ Execution Time: 6243.005 ms
+
+ In this case index only scan... we dind't have to go to the heap ->
+ Heap Fetches: 0
+ As you can see you read all the IO (more or less) you don't use the system cache
+
+ Another useful thing... In order to know if table contains error
+ you can do this:
+ - vacuum (verbose) students;
+
+ In the end the larger the table (more columns) the better non key index works. But if you add
+ so much information it can't fit in memory, if it can't fit in memory there, it will be put on desk
+ And in this case that's a read that we have to read the index from the desk to do queries
+ And this will kill our performance

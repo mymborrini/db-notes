@@ -1,0 +1,57 @@
+
+If you want to create a web server to check if a username exists or not.
+
+GET/username?q=paul -----> webServer make a query to the database -----> database (return response)
+
+Probably this is really slow for a features so popular...
+
+So what do we do? REDIS for example
+
+GET/username?q=paul -----> webServer make a query to the database -----> REDIS (I have it)
+
+OR
+
+GET/username?q=paul -----> webServer make a query to the database -----> REDIS (I dont have it)
+                                                                  -----> database(return response)
+
+But this is very inefficient (because redis and the database are async) and you duplicate the memory 
+since you're storing data in 2 place
+
+So BLOOM FILTERS
+Use some inMemory representation, for example 64 bit of memory (you can of course use a random number of bit)
+
+Bit value:     0 1 0 0 1 1 0 0 0 1 0 1 0 1 1 1 0 0 0 1 0 1 0 1 1 1 0 0 0 1 0 1 0 1 1 1 0 0 0 1 0 1 0 1 1 1 0 0 0 1 0 1 0 1 1
+Bit position:  0 1 2 3 4 5 6 7 8 9 ....                                                                                 ...63
+
+So in this case when a request arrives what do we do?
+We hash the string "paul" and moded 64
+
+- Hash(paul) % 64 = 3
+
+So has bit in 3 position have a value 1? NO => Then you can say without a doubt the paul DOES NOT EXIST IN THE database 100% SURE
+
+GET/username?q=jack
+
+- Hash(jack) % 64 = 63
+
+So has bit in 63 position have a value 1? YES => Then you can say that jack COULD POSSIBLY EXIST IN THE database
+
+Why I say could POSSIBLY exists, because of course there are other string whose hash moded 64 give 63 as a result.
+If it's set ok go and hit the database
+
+This is a very efficient way to prevent unecessary query
+
+Cassandra use this in its implementation of consistent hashing all the time.
+
+In general bloom filters is really useful to understand if it's necessary to do a query or not
+
+HOW TO CREATE A BLOOM FILTERS?
+
+At the start of the application and during a POST for creation.
+You can collect all the username string make an hash of them (modded) and then create your inMemory bloom filters
+
+
+
+
+
+

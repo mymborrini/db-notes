@@ -1,0 +1,8 @@
+
+- Horizontal partition split rows into partition:
+ - Range or list
+- Vertical partition splits columns partitions:
+  e.g. Large column (blob) that you barely query. You can store it in a slow access drive
+  in its own tablespace
+
+Vertical partition is pretty useful too, so you can save a lot of space

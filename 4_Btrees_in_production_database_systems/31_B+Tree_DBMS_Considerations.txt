@@ -1,0 +1,18 @@
+
+B+Tree & DBMS Considerations
+- Cost of leaf pointer (cheap)
+- 1 Node fits a DBMS page (most DBMS)
+- Can fit internl nodes easily in memory for fast traversal
+- Leaf nodes can live in data files in the heap
+- Most DBMS use B+tree
+
+Even Mongo DB with wiredTiger database engine, the database engine of Mongo DB is wiredTiger. 
+MongoDB use B+Tree index system.
+
+wiredTiger has of course some variants for example leaf node does not have pointer to the following node.
+Since in NoSql datbase you usually don't make query for range of ids. They are smart enough not to include
+useless stuff.
+
+Of course B+Tree does its  best when putting  in memeory, of courde 
+you can also put it on the disk if it's too big, but it could be 
+really slow.

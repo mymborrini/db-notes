@@ -1,0 +1,23 @@
+version: '2'
+
+services:
+  pmaster:
+    image: postgres:13
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_PASSWORD: postgres
+    hostname: pmaster
+    volumes:
+      - $PWD/master_data:/var/lib/postgresql/data
+  pstandby:
+    image: postgres:13
+    ports:
+      - 5433:5432
+    environment:
+      POSTGRES_PASSWORD: postgres
+    hostname: pstandby
+    volumes:
+      - $PWD/standby_data:/var/lib/postgresql/data
+
+

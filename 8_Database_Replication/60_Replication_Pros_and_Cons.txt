@@ -1,0 +1,15 @@
+Pros 
+ - Horizontal Scaling
+ - Region based queries - DB per Region
+Cons
+ - Eventual Consistency
+ - Slow writes (Synchronous)
+ - Complex to implements (multi master)
+
+By Horizontal Scaling in this case means that your reads are scalable, not your writes,
+( if you don't implements multi-master of course)
+
+Multi master is like a pain in the ass, so it's better to optimize your write operations as 
+much as possible within the master single instance.
+
+Slow writes... it depends how you configure it with First 1, or 2 ecc...

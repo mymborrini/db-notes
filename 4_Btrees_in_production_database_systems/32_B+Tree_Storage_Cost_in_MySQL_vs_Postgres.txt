@@ -1,0 +1,32 @@
+Storage cost in postgres vs Mysql
+
+- B+Tree secondary index values can either point directly to a tuple (postgres) 
+or to the primary key (MySQL)
+- If the primary key data type is expensive this can cause bloat in all secondary indexes for 
+databases such Mysql (innoDB)
+- Leaf nodes in mysql (innoDB) contains the full row since its an IOT / clustered index
+
+Firstable consider that postgres is an object relational database while mysql is a pure relational 
+database. This means that postgres includes features like table inheritance and function overloading
+which can be important for certain application.
+
+As a general rule of thumb, mysql is better for website and transactional traffics, while postgres is
+great for analytic anc concurrent processes.
+Mysql is great at read-heavy processes, Postgres is great for concurrent write operations.
+
+Therefore postgres inherently performs better due to its concurrent support for write operations,
+without the need to read/write locks. On the other hand mysql try to achieve concurrency with the 
+use of write locks. This esentially reduces the number of concurrent operations per process. In order
+for Mysql to scale in production environment, you will have to add a considerable amount of resources.
+
+One area where Mysql excels, however is read-heavy operations. Since most applications only read-display
+information from a database, there have been many times when a simple mysql implementation far 
+outperformed a postgres implementation. This is because postgres allocate a significant amount of 
+memory (10MB) when it forks a new process for each connection. This causes bloated memory usage and 
+effectively eats away at speed. Thus it sacrifice speed for data integrity and standards compilence.
+For a simple implementation postgres might be a poor choice.
+
+The reason why inserting is so slow in Mysql especially when you have an UUID index is because every index
+point to the primary key so if the primary key is big, it takes a large bunch of memory in order
+to store all the index. 
+If it's large, the space cannot fit the memory with all the problems we discuss before.

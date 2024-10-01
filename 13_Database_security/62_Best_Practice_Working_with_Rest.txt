@@ -1,0 +1,18 @@
+Creating tables or other ddl stuff should be a different user than the owner of
+the schema. So you should give him different permissions.
+
+The reason is the following, if you create the tables at spinning up of the application
+the owner can do pretty everything, so in case of sql injection. This is really a huge risk
+Because the owner user can do pretty everything, dropping the schema included.
+
+So a solution could  be creating the schema at the starting of the application using a 
+complete different user.
+
+When you have to consume the application you can login with different database users.
+For example if a route of application should be readonly. There is no reason to let
+the user which is connected to the database have write permissions. So you have the user
+to create the schema; the app-user-consumer-readonly and the app-user-consumer, which
+can interact through sql but not through ddl.
+
+And for each database user you create (with different permissions) you must have a connection
+pool.

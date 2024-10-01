@@ -1,0 +1,6 @@
+- MultiMaster leaders/nodes that accepts writes/ddls 
+- One or more backup/follower nodes that receive those writes from the master
+- Need to resolve conflicts
+
+How to implements MultiMaster? Since there is a possibility of conflicts, you have to create
+a way to resolve conflicts.

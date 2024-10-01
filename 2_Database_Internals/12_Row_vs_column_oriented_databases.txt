@@ -1,0 +1,152 @@
+Row and Column oriented are two data structured about how databases save the tables on the disk
+
+- Row-Oriented Database (Row Store)
+- Column-Oriented Database (Column Store) o Data Warehouse
+- Pros and Cons
+
+Consider the following table:
+
+ | rowid | id | first_name | last_name | ssn | salary   |    dob     | title    |    joined     |
+ ------------------------------------------------------------------------------------------------
+ | 1001  | 1  | John       | Smith     | 111 | 101,000  | 1/1/1991   | eng      |    1/1/2011   |
+ | 1002  | 2  | Kary       | White     | 222 | 102,000  | 2/2/1992   | mgr      |    2/1/2012   |
+ | 1003  | 3  | Norman     | Freeman   | 333 | 103,000  | 3/3/1993   | mkt      |    3/1/2013   |
+ | 1004  | 4  | Nole       | Smith     | 444 | 104,000  | 4/4/1994   | adm      |    4/1/2014   |
+ | 1005  | 5  | Dar        | Sol       | 555 | 105,000  | 5/5/1995   | adm      |    5/1/2015   |
+ | 1006  | 6  | Yan        | Thee      | 666 | 106,000  | 6/6/1996   | mkt      |    6/1/2016   |
+ | 1007  | 7  | Hasan      | Ali       | 777 | 107,000  | 7/7/1997   | acc      |    7/1/2017   |
+ | 1008  | 8  | Ali        | Bilal     | 888 | 108,000  | 8/8/1998   | acc      |    8/1/2018   |
+ ------------------------------------------------------------------------------------------------
+
+For now consider we don't have indexes... since indexes complicate the matter a little bit
+
+ - select first_name from emp where ssn = 666;
+ - select * from emp where id = 1;
+ - select sum(salary) from emp;
+
+We perform this queries on a row store database and on a column store database :
+
+
+
+Row Store:
+ - Tables are stored as rows in disk
+ - A single block io read to the table fetches multiple rows with all their columns
+ - More IOs are required to find a particular row in a table scan but once you find the 
+   row you get all columns for that row
+
+For this example consider rows are stored as pages of two rows.
+So each page is like this
+
+1001,1,John,Smith,111,101.000,1/1/1991,eng,1/1/2011,
+1002,2,Kary,White,222,102.000,2/2/1992,mgr,2/1/2012
+
+select first_name from emp where ssn = 666;
+I started from the top (first page) of course because I don't know where ssn 666 is.
+ - 1 IO -> retrieve rowids(1001,1002) and all the columns of that, of course, you cannot avoid it.
+           Does ssn=666 exists? No -> Discard this and pull the second page.
+ - 2 IO -> retrieve rowids(1003,1004) and all the columns of that, of course, you cannot avoid it.
+           Does ssn=666 exists? No -> Discard this and pull the third page.
+ - 3 IO -> retrieve rowids(1005,1006) and all the columns of that, of course, you cannot avoid it.
+           Does ssn=666 exists? Yes -> I don't need any external IO I have the name already inside the
+           memory
+
+select * from emp where id = 1;
+I started from the top (first page) of course because I don't know where id 1 is.
+ - 1 IO -> retrieve rowids(1001,1002) and all the columns of that, of course, you cannot avoid it.
+           Does id=1 exists? -> Yes! Everything is inside the memory and this is so cheap. In a column oriented
+	   database as you can image select * is the worst thing you can do.
+
+ 
+select sum(salary) from emp;
+ - 1 IO -> retrieve rowids(1001,1002) and all the columns of that, of course, you cannot avoid it.
+ - 2 IO -> retrieve rowids(1003,1004) and all the columns of that, of course, you cannot avoid it.
+ - 3 IO -> retrieve rowids(1005,1006) and all the columns of that, of course, you cannot avoid it.
+ - 4 IO -> retrieve rowids(1007,1008) and all the columns of that, of course, you cannot avoid it.
+
+Every block we pull, we pull a lot of useless information since we only need salary and I read the entire table.
+Row Store does not fit well for this kind of query.
+
+
+
+Column Store:
+ - Tables are stored as columns first in disk.
+ - A single block IO read to the table, fetches multiple columns (or even a single one, depends on the table dimension)
+   with all matching rows
+ - Less IOs are required to get more values of a given column but working with multiple columns require more IOs
+ - OLAP
+
+So each page is like this... al the columns are referenced to the rowid
+
+Page 1 :
+1:1001,2:1002,3:1003,4:1004,5:1005,6:1006,7:1007,8:1008
+
+Page 2 :
+John:1001,Kary1002:Norman:1003,Nole:1004
+
+Page 3 :
+Dar:1005,Yan:1006,Hassan:1007,Ali:1008
+
+Page4:
+111:1001,222:1002,333:1003,444:1004
+
+Page5:
+555:1005,666:1006,777:1007,888:1008
+
+As you can see the row id duplicates every column, so just like that You can see it's gonna be painful because if 
+you delete 4th row you have to update all the page in that table, or even if you add a new row. You can also split one column into multiple pages
+like page 2 and page 3 in the example.
+
+
+select first_name from emp where ssn = 666;
+ - 1 IO -> Go directly to ssn page and pull only that page (page 4) looking for ssn = 6. Not Found.
+ - 2 IO -> Pull page 5 	look for ssn = 6 found! With rowId = 1006 (It's very similar of how indexes works)
+ - 3 IO -> Pull first name page with rowId so page 3 directly -> Found Yan!
+
+
+select * from emp where id = 1;
+ - 1 IO -> Pull first page found id = 1 -> rowId = 1001!! (Cool but now the user is asking me everything)
+ - 2 IO -> Pull page 2 (and not page 3) since I know in which block is the rowId. First Name found
+ - 3 IO -> Pull page 4 (and not page 5) ssn found
+ ....
+ Until every data is collected.
+This is the worst you can do. Especially if you have a lot of columns
+
+select sum(salary) from emp;
+ - 1 IO -> Pull salary pages and sum them all!! DONE finish, with just one IO.
+In this kind of query column store mechanism shows the best. Furthermore if you have a lot of replication value,
+in this example a lot of employees with the same salary. Column row can compress it really easy saving a lot 
+of space with ease. Row Stored on the other hand is not so efficient doing so.
+
+So in the end pros and cons:
+
+Row - Stored
+ - Optimal for read/writes (or transaction in general)
+ - OLTP
+ - Compression is not efficient (the value are not conseguent)
+ - Aggregration is not efficient
+ - Efficient queries w/multi-columns
+
+Column - Stored
+ - Writes are slower
+ - OLAP
+ - Compression greatly (all similar are conseguent)
+ - Amazing for aggregation
+ - Inefficient queries w/multi-columns
+
+OLTP -> On-Line Transaction Processing é un insieme di tecniche software utilizzate per la gestione di applicazioni
+orientate alle transazioni. L'uso maggiormente diffuso é nelle transazioni finanziarie, nelle vendite al dettaglio e 
+nel CRM. Il sistema OLTP serve per registrare inserimento, aggiornamento ed eliminazione di dati durante una
+transazione. Le query OLTP sono piu' semplici e brevi e quindi richiedono meno tempo nell'elaborazione e meno spazio
+di archiviazione. Possiamo definire quindi le OLTP come la fonte dei dati per le OLAP.
+
+OLAP -> On-Line Analytical Processing, é un insieme di techniche software per l'analisi interattiva e veloce di grandi
+quantità di dati, che é possibile esaminare in modalità piuttosto complesse. Questa é la componenete tecnologica base
+del data warehouse e viene utilizzata dalle aziende per analizzare risultati delle vendite, andamento dei costi, 
+risultati di campagne marketing e comunicazione, organizzare dati di sondaggi e altri casi simili.
+Il sistema di analisi OLAP rientra tra gli strumenti di business intelligence, e permette quindi di estrarre informazioni
+da database di grandi dimensioni e analizzarle poi per prendere decisioni aziendali.
+
+Postgres,Mysql are row oriented database storage, but they have database storage engine... and this could be replaced
+or customize in order to make single table column-stored or row-stored. A really bad practice is to make some relation
+between a row-oriented table and a column oriented table, because you will match the worst of this two storage system
+

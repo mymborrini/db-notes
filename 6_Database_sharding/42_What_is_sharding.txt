@@ -1,0 +1,20 @@
+﻿Let’s consider having a table of url
+
+| id |  Url  | Url_id |
+----------------------
+|  1 | http..|  5FTOJ |
+
+Image that this table have billions of data, and querying this table become slower and slower, the more the table increase
+
+
+So the reason is more or less the same of partition
+Split 1 billion rows into 5 (for example) database instances ... same schema
+
+But now consider the following query
+- select url, url_id where url_id = “5FTOJ”;
+
+Which database instance have the data you’re looking for
+
+=> Consistent hashing. So you know which database you have to connect, connect make the query and get the result
+
+

@@ -1,0 +1,9 @@
+Partitioning could be:
+- by range
+ - date,ids
+- by list
+ - Discrete values e.g. states or zip code
+- by hash
+ - hash function consistent hashing
+
+Cassandra for example use hashing to split the values

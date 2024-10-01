@@ -1,0 +1,84 @@
+If you have multiple indexes how do you know what index the database decides to use for your query.
+It can not decide to use all indexes you set, it really depends.
+It clearly depends but it is crucial in order to understand if you need to add an extra index or not
+
+Let's take as example a table with two columns:
+
+- create table t(f1 int , f2 int);
+
+And two index and populate the table:
+- create index on t(f1);
+- create index on t(f2);
+
+- insert into t(f1,f2) select 
+floor(random() * 100),
+floor(random() * 100)
+ from generate_series(0, 50000000);
+
+
+ And make THIS query:
+- select * from t where f1 = 1 and f2 = 4;
+
+THERE ARE 3 CASES FOR THIS KIND OF QUERY:
+
+Case 1:
+-> BOTH indexes are used to query
+e.g f1_idx is used to search 1 and f2_idx is used to search for 4, then rowIds are merged
+ResultSet from f1_idx is not too small or too large.
+-> You callect all the row_ids you need by merging (previous point). Now go to the table and
+fetch your result
+
+When I said ResultSet is not too small or too large. it means that after you search for f1_idx
+the row_ids you collected are not too small or too large. Because if there are too small, there
+is no need to go and searching for f2_idx. Just go to the table, fetch all the row_ids which
+satisfied the f1_idx condition and then filter them for the second condition (f2 = 4). So the 
+f2_idx is not used at all.
+The same if the row_ids you collected are too many. Since searching through an index has its cost
+and f2_idx could possibily returns a lot of row_ids too (and then you have to do the merge and then go to the table anyway), 
+is much convenient to go directly to the table, fetch the result and then filter them.
+
+
+So in this case
+Case 2:
+-> Only ONE index is used
+e.g. f1_idx to search for 1, row_ids are collected and then table is accessed and then filtered for f2 = 4
+This could even happen if f1_idx is the primary key (for example in mysql) or if the database know that f2_idx = 4
+returns so many rows (respect to f1_idx) that there is no need to search for it. 
+If f1_idx returns 3 row_ids and f2_idx returns 4000 row_ids there is no need for looking for f2_idx row_ids. Simply
+go to the table fetch the 3 rows you need and then filter them.
+
+In general if you know that index returns not so much values, then searching for index is worthing. If not go directly 
+to the table could be a better idea.
+
+How the database know if an index returns a lot of rows inside a few one -> The STATS
+
+Stats (Statistics) are powerful instruments used by the database to monitoring the table, and collect this kind of data.
+In oracle you can even update the stats, the stats ARE NOT THE EXACT NUMBER. There are not 100% sure... but they can 
+give the database engine an approximation of what he is going to search.
+
+
+Case 3:
+-> NO index is used (full table scan)
+- e.g. Database decides the search will yield so many rows that its going to be faster to do a full table
+scan. 
+- Table Statistics are critical here!!
+
+In this case both index returns so many rows that there is not worthy search for the index data structure. Instead is
+better to go directly to the table.
+
+Another thing to pay attention is that the stats are updated ASYNCHRONOS. So if you insert 3 rows... wait for the 
+database to update the stats, insert 3 billions rows and then immediatly make a query... there is a huge risk that
+the database thinks "Oh this table has only 3 rows, let's go for a full table scan"... and this is a disaster...
+
+So in this kind of operation remembers to update the stats, doing this kind of operation
+
+If you want you can use HINT to tell the database which strategy used, but generally is way better to let the 
+optimizer do the work.
+
+- Hints can be useful if the application has more knowledge about the query than the optimizer, it can force
+the optimizer to use a specific plan to pick an index over another especially if the stats are not up to date.
+
+This is a rarely case when you make for example a really big update to the table and then make a query directly, because
+you cannot wait for the stats to be updated.
+
+

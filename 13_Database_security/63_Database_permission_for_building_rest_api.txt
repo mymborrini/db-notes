@@ -1,0 +1,55 @@
+It could be a good idea to specify a specific db user for each route. 
+It's a lot of work but it is worth
+
+So let's talk about create different user with different permissions with different
+pool database connection.
+
+Pooling is especially important in this case Because it garantes to you that your connection
+to the database follow a single tcp connection. If you makes multiple request using the same 
+TCP connection, you cannot be sure that the results you expected is the one you asked for
+
+At first when you connected to a pool you use the admin user, which is so bad, because it can do pretty anything
+
+Let's talk about a simple todo application which read,write and delete the /todo (so 3 routes)
+
+So I'm gonna create 3 user.
+Create 3 type of pools and then connect the pools to the user you created, one for each user
+
+so a todoReadPool with a user dbRead
+
+a todoCreatePool with a user dbCreate
+
+a todoDeletePool with a user dbDelete
+
+Wheny you start the connection with the database you initialize all the connection pools
+
+So now you have to create all those user in order to perform your route.
+
+Now to set them in the database properly: the owner of the table is the postegres user as the default
+and this is ok
+
+Then we add a user todoCreateUser with the permissions of login. That's all we need.
+In the table properties in the security tab we specify that this todoCreateUser can only 
+insert (right now, depending on the ORM, probably we add a select method permission. But 
+it really depends on the code library or on the ORM we are using)
+
+Then we do the same thing for todoReadUser and todoDeleteUser.
+
+Another thing is to not tell the user what is going in your database. So no exceptions should be 
+returned.
+
+Now it depends on the dabatase, for example in this case with Postgres, when we try to add a todo
+it fails.
+The reason is that he needs to select an id from the sequence table in order to 
+create a new id, but he does not have permission on that sequence, so for solve this
+issue we have to give the dbCreateUser the permission to select from the sequence table
+and to insert in them as well, because he needs to manage the sequence insert or delete.
+In some dabatase this behaviour is called "usage".
+
+For delete it will raise you an exception again. The reason is 
+that the query you use to remove a single entry from the database is something like this:
+
+"delete from table_name where id = $1", so as you can see it has to do a select before
+a delete. So as permission you have to give him the select permission.
+
+In the end each user for each route is the best idea
