@@ -128,7 +128,7 @@ Producers are applications that publish/write events to kafka. Producers distrib
 
 Consumers are application that subscribe to topics and process published messages. A consuimer uses offset to track which messages it has already consumed. A consumer stores the offset of the last consumed message for each partition so it can stop and restart without losing its place. Consumers interact with a topic as a GROUP. This enables scalable processing. The group ensures that 1 member only consumes 1 partition 
 
-![consumer.group.png](./../../images/consumer_group.drawio.png)
+![consumer.group.png](./../../images/key-value-kafka/consumer_group.drawio.png)
 
 If one consumer fails the reminaing members reorganize consumed partitions to compensate for the absent member.
 
